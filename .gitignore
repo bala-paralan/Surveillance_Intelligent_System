@@ -1,0 +1,47 @@
+# === SurveillanceOS .gitignore ===
+# Security rule: NEVER commit secrets, certs, or env files
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.cert
+*.crt
+*.p12
+*.pfx
+
+# Node
+node_modules/
+dist/
+build/
+coverage/
+.npm/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+.pytest_cache/
+*.egg-info/
+
+# Docker
+*.dockerignore
+
+# Logs (never log credentials)
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/settings.json
+.idea/
+
+# Prisma
+prisma/migrations/*.sql.bak
