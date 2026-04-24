@@ -1,11 +1,15 @@
 /**
- * Catalogue routes — TASK-032.
+ * Catalogue routes — TASK-032 + TASK-035/036/037.
  *
  * GET  /aoi/:aoiId/catalogue  — list sensors + assets + cameras inside AOI
  * GET  /sensors               — list all sensors (paginated, optional ?bopZoneId)
  * POST /sensors               — create sensor
  * GET  /sensors/:id           — get single sensor
  * PATCH /sensors/:id/health   — update sensor health
+ *
+ * Phase 0B sensor events:
+ * GET  /sensor-events         — list recent sensor events (VIEWER+)
+ * POST /sensor-events         — create sensor event (analytics API key auth)
  */
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
@@ -14,6 +18,7 @@ import { verifyJwt, requireRole } from '../middleware/auth.js';
 import { NotFoundError } from '../errors.js';
 import { logger } from '../logger.js';
 import { listForAoi, toSensorPublic } from '../services/catalogue-service.js';
+import { config } from '../config.js';
 
 // ── Zod schemas ──────────────────────────────────────────────────────────────
 
@@ -40,6 +45,35 @@ const ListSensorsQuerySchema = z.object({
   bopZoneId: z.string().optional(),
   page:      z.coerce.number().int().positive().optional().default(1),
   pageSize:  z.coerce.number().int().positive().max(200).optional().default(50),
+});
+
+// ── Sensor event Zod schemas ──────────────────────────────────────────────────
+
+const SensorEventTypeSchema = z.enum([
+  'SEISMIC_TUNNEL', 'SEISMIC_FOOTSTEP', 'SEISMIC_VEHICLE', 'SEISMIC_ANIMAL', 'SEISMIC_NOISE',
+  'ACOUSTIC_VOICE', 'ACOUSTIC_GUNSHOT', 'ACOUSTIC_VEHICLE', 'ACOUSTIC_DRONE', 'ACOUSTIC_ANIMAL', 'ACOUSTIC_NOISE',
+  'THERMAL_HUMAN', 'THERMAL_VEHICLE',
+  'LIDAR_MOTION',
+  'PAN_PERSON', 'PAN_VEHICLE',
+]);
+
+const ListSensorEventsQuerySchema = z.object({
+  sensorId: z.string().optional(),
+  type:     SensorEventTypeSchema.optional(),
+  aoiId:    z.string().optional(),
+  limit:    z.coerce.number().int().positive().max(500).optional().default(50),
+  offset:   z.coerce.number().int().min(0).optional().default(0),
+  from:     z.string().datetime().optional(),
+  to:       z.string().datetime().optional(),
+});
+
+const CreateSensorEventBodySchema = z.object({
+  sensorId:   z.string().min(1),
+  type:       SensorEventTypeSchema,
+  aoiIds:     z.array(z.string()).default([]),
+  confidence: z.number().min(0).max(1),
+  payload:    z.record(z.unknown()),
+  occurredAt: z.string().datetime(),
 });
 
 // ── Route plugin ─────────────────────────────────────────────────────────────

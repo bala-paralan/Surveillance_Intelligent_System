@@ -5,12 +5,22 @@ POST /detect       — run motion + YOLO + intrusion checks on a submitted frame
 GET  /health       — liveness / readiness probe
 POST /zones        — register/replace zones for a camera
 GET  /zones/{camera_id} — retrieve registered zones for a camera
+
+Phase 0B sensor endpoints:
+GET  /analytics/seismic/health   — seismic driver health
+POST /analytics/seismic/classify — classify a submitted waveform
+GET  /analytics/acoustic/health  — acoustic driver health
+POST /analytics/acoustic/classify — classify submitted audio
+
+TASK-039 fusion endpoints:
+POST /fusion/process  — synchronous fusion for testing
+GET  /fusion/health   — fusion subsystem health
 """
 from __future__ import annotations
 
-import io
 import json
 import logging
+import os
 from datetime import datetime, timezone
 from typing import Any
 
@@ -26,6 +36,11 @@ from analytics.detectors.intrusion_detector import (
 from analytics.detectors.motion_detector import MotionDetector
 from analytics.models.yolo_wrapper import Detection, YoloDetector
 from analytics.api.redis_publisher import publish_detection_event
+from analytics.detectors.seismic.classifier import SeismicClassifier
+from analytics.detectors.acoustic.classifier import AcousticClassifier
+from analytics.fusion.engine import FusionEngine
+from analytics.fusion.weights_loader import load_weights
+from analytics.fusion.bayes import FusionOutcome
 
 logger = logging.getLogger(__name__)
 
@@ -241,3 +256,208 @@ def get_zones(camera_id: str) -> ZoneListResponse:
         for z in stored
     ]
     return ZoneListResponse(camera_id=camera_id, zones=zones_out)
+
+
+# ── TASK-039: Fusion singletons ───────────────────────────────────────────────
+
+_fusion_weights = load_weights()
+_fusion_engine = FusionEngine(_fusion_weights)
+
+# ── Phase 0B: Seismic sensor endpoints ───────────────────────────────────────
+
+_seismic_classifier = SeismicClassifier()
+_acoustic_classifier = AcousticClassifier()
+
+
+class SeismicHealthResponse(BaseModel):
+    status: str
+    driver: str
+    scenario: str
+    sample_rate: int
+    ts: str
+
+
+class SeismicClassifyRequest(BaseModel):
+    waveform: list[float]
+    sample_rate: int = 100
+
+
+class SeismicClassifyResponse(BaseModel):
+    type: str
+    confidence: float
+    direction_deg: float
+    distance_m: float
+    pattern_window_ms: int
+
+
+@router.get("/analytics/seismic/health", response_model=SeismicHealthResponse)
+def seismic_health() -> SeismicHealthResponse:
+    """Liveness probe for the seismic ingestion subsystem."""
+    scenario = os.getenv("SEISMIC_SCENARIO", "NORMAL")
+    return SeismicHealthResponse(
+        status="ok",
+        driver="ReferenceSeismicDriver",
+        scenario=scenario,
+        sample_rate=100,
+        ts=datetime.now(tz=timezone.utc).isoformat(),
+    )
+
+
+@router.post("/analytics/seismic/classify", response_model=SeismicClassifyResponse)
+def seismic_classify(body: SeismicClassifyRequest) -> SeismicClassifyResponse:
+    """
+    Classify a submitted seismic waveform (float32 array as JSON list).
+
+    Body:
+      { "waveform": [0.0, 0.01, ...], "sample_rate": 100 }
+    """
+    if len(body.waveform) == 0:
+        raise HTTPException(status_code=400, detail="waveform must be non-empty")
+    window = np.array(body.waveform, dtype=np.float32)
+    event = _seismic_classifier.classify(window, body.sample_rate)
+    return SeismicClassifyResponse(
+        type=event["type"],
+        confidence=event["confidence"],
+        direction_deg=event["direction_deg"],
+        distance_m=event["distance_m"],
+        pattern_window_ms=event["pattern_window_ms"],
+    )
+
+
+# ── Phase 0B: Acoustic sensor endpoints ──────────────────────────────────────
+
+
+class AcousticHealthResponse(BaseModel):
+    status: str
+    driver: str
+    scenario: str
+    ts: str
+
+
+class AcousticClassifyRequest(BaseModel):
+    audio: list[float]
+    sample_rate: int = 16000
+
+
+class AcousticClassifyResponse(BaseModel):
+    type: str
+    confidence: float
+    direction_deg: float
+    has_doa: bool
+
+
+@router.get("/analytics/acoustic/health", response_model=AcousticHealthResponse)
+def acoustic_health() -> AcousticHealthResponse:
+    """Liveness probe for the acoustic ingestion subsystem."""
+    scenario = os.getenv("ACOUSTIC_SCENARIO", "NORMAL")
+    return AcousticHealthResponse(
+        status="ok",
+        driver="ReferenceAcousticDriver",
+        scenario=scenario,
+        ts=datetime.now(tz=timezone.utc).isoformat(),
+    )
+
+
+@router.post("/analytics/acoustic/classify", response_model=AcousticClassifyResponse)
+def acoustic_classify(body: AcousticClassifyRequest) -> AcousticClassifyResponse:
+    """
+    Classify submitted audio samples (float32 array as JSON list).
+
+    Body:
+      { "audio": [0.0, 0.01, ...], "sample_rate": 16000 }
+
+    PRIVACY: this endpoint classifies audio events only — no transcription.
+    """
+    if len(body.audio) == 0:
+        raise HTTPException(status_code=400, detail="audio must be non-empty")
+    audio = np.array(body.audio, dtype=np.float32)
+    event = _acoustic_classifier.classify(audio, body.sample_rate)
+    return AcousticClassifyResponse(
+        type=event["type"],
+        confidence=event["confidence"],
+        direction_deg=event["direction_deg"],
+        has_doa=event["has_doa"],
+    )
+
+
+# ── TASK-039: Fusion endpoints ────────────────────────────────────────────────
+
+
+class FusionRenderHint(BaseModel):
+    glyph: str
+    radius_m: float | None = None
+    bearing_deg: float | None = None
+    arc_deg: int | None = None
+    decay_s: int | None = None
+
+
+class FusionOutcomeOut(BaseModel):
+    aoi_id: str
+    outcome_class: str
+    confidence: float
+    supporting_event_ids: list[str]
+    first_seen: str
+    last_seen: str
+    render_hint: dict[str, Any]
+
+
+class FusionProcessRequest(BaseModel):
+    events: list[dict[str, Any]]
+    time_window_s: float = 3.0
+
+
+class FusionProcessResponse(BaseModel):
+    outcomes: list[FusionOutcomeOut]
+
+
+class FusionHealthResponse(BaseModel):
+    status: str
+    weights_loaded: bool
+    event_buffer_sizes: dict[str, int]
+
+
+@router.post("/fusion/process", response_model=FusionProcessResponse)
+def fusion_process(body: FusionProcessRequest) -> FusionProcessResponse:
+    """
+    Synchronous multi-sensor fusion for testing/debugging.
+
+    Body:
+      { "events": [ { "aoi_id": "...", "type": "seismic_footstep", "ts": "...", ... }, ... ],
+        "time_window_s": 3.0 }
+
+    Returns outcomes for all clusters whose confidence exceeds 0.5.
+    """
+    from analytics.fusion.cluster import cluster_events as _cluster_events
+    from analytics.fusion.bayes import compute_posterior
+
+    if not body.events:
+        return FusionProcessResponse(outcomes=[])
+
+    clusters = _cluster_events(body.events, time_window_s=body.time_window_s)
+    outcomes: list[FusionOutcomeOut] = []
+    for cluster in clusters:
+        outcome = compute_posterior(cluster, _fusion_weights)
+        if outcome["confidence"] >= 0.5:
+            outcomes.append(
+                FusionOutcomeOut(
+                    aoi_id=outcome["aoi_id"],
+                    outcome_class=outcome["outcome_class"],
+                    confidence=outcome["confidence"],
+                    supporting_event_ids=outcome["supporting_event_ids"],
+                    first_seen=outcome["first_seen"],
+                    last_seen=outcome["last_seen"],
+                    render_hint=outcome["render_hint"],
+                )
+            )
+
+    return FusionProcessResponse(outcomes=outcomes)
+
+
+@router.get("/fusion/health", response_model=FusionHealthResponse)
+def fusion_health() -> FusionHealthResponse:
+    """Liveness probe for the fusion subsystem."""
+    return FusionHealthResponse(
+        status="ok",
+        weights_loaded=len(_fusion_weights) > 0,
+        event_buffer_sizes=_fusion_engine.event_buffer_sizes,
+    )

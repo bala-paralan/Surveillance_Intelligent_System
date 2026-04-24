@@ -19,23 +19,23 @@
 | TASK-032 | Sensor & Asset Catalogue with spatial query inside AOI | Backend + Frontend | P0 | M | ✅ Done (2026-04-24) |
 | TASK-034 | Role-split UI — Operator vs Engineering views | Frontend + Backend | P0 | M | ✅ Done (2026-04-24) |
 
-### Phase 0B — Multi-sensor ingestion (Planned — unblocked by 0A)
+### Phase 0B — Multi-sensor ingestion ✅ Complete (2026-04-24)
 
 | Task | Title | Owner(s) | Priority | Complexity | Depends on | Status |
 |------|-------|----------|----------|------------|------------|--------|
-| TASK-035 | Seismic sensor ingestion + pattern classification (tunnel / footsteps / vehicle) | Analytics + Backend | P0 | L | TASK-032 ✅ | 🔴 Proposed |
-| TASK-036 | Acoustic sensor ingestion + classification (gunshot / voices / vehicle) | Analytics + Backend | P0 | M | TASK-032 ✅ | 🔴 Proposed |
-| TASK-037 | Thermal / LIDAR / Pan-image ingestion adapter | Analytics + Backend | P1 | L | TASK-032 ✅ | 🔴 Proposed |
+| TASK-035 | Seismic sensor ingestion + pattern classification (tunnel / footsteps / vehicle) | Analytics + Backend | P0 | L | TASK-032 ✅ | ✅ Done (2026-04-24) |
+| TASK-036 | Acoustic sensor ingestion + classification (gunshot / voices / vehicle) | Analytics + Backend | P0 | M | TASK-032 ✅ | ✅ Done (2026-04-24) |
+| TASK-037 | Thermal / LIDAR / Pan-image ingestion adapter | Analytics + Backend | P1 | L | TASK-032 ✅ | ✅ Done (2026-04-24) |
 
-### Phase 0C — Fusion, visualization and operator surface (Planned)
+### Phase 0C — Fusion, visualization and operator surface ✅ Complete (2026-04-24)
 
 | Task | Title | Owner(s) | Priority | Complexity | Depends on | Status |
 |------|-------|----------|----------|------------|------------|--------|
-| TASK-039 | Multi-sensor fusion engine — combined confidence scoring | Analytics + Backend | P0 | L | TASK-035, TASK-036, TASK-037 | 🔴 Proposed |
-| TASK-038 | Use-case visualization layer — tunnel / footstep-radius / direction glyphs | Frontend + Analytics | P0 | L | TASK-035, TASK-039 | 🔴 Proposed |
-| TASK-040 | Human-readable alerts on live map — zone-scoped, actionable | Frontend + Backend | P0 | M | TASK-039, TASK-041 ✅ | 🔴 Proposed |
-| TASK-033 | Multi-AOI quadview panel (1 / 2 / 4 split) | Frontend | P1 | M | TASK-031 ✅, TASK-032 ✅ | 🔴 Proposed |
-| TASK-042 | Engineering & maintenance view — raw waveforms, health, thresholds, diagnostics | Frontend + Backend | P1 | M | TASK-034 ✅, TASK-035 | 🔴 Proposed |
+| TASK-039 | Multi-sensor fusion engine — combined confidence scoring | Analytics + Backend | P0 | L | TASK-035 ✅, TASK-036 ✅, TASK-037 ✅ | ✅ Done (2026-04-24) |
+| TASK-038 | Use-case visualization layer — tunnel / footstep-radius / direction glyphs | Frontend + Analytics | P0 | L | TASK-035 ✅, TASK-039 ✅ | ✅ Done (2026-04-24) |
+| TASK-040 | Human-readable alerts on live map — zone-scoped, actionable | Frontend + Backend | P0 | M | TASK-039 ✅, TASK-041 ✅ | ✅ Done (2026-04-24) |
+| TASK-033 | Multi-AOI quadview panel (1 / 2 / 4 split) | Frontend | P1 | M | TASK-031 ✅, TASK-032 ✅ | ✅ Done (2026-04-24) |
+| TASK-042 | Engineering & maintenance view — raw waveforms, health, thresholds, diagnostics | Frontend + Backend | P1 | M | TASK-034 ✅, TASK-035 ✅ | ✅ Done (2026-04-24) |
 
 ---
 
@@ -70,14 +70,14 @@
 
 ---
 
-## Sprint 4 — DevOps & Observability (Planned)
+## Sprint 4 — DevOps & Observability ✅ Complete (2026-04-24)
 
 | Task | Title | Owner(s) | Complexity | Status |
 |------|-------|----------|------------|--------|
-| TASK-009 | Docker Compose dev stack (all services + health checks) | DevOps | S | Backlog |
-| TASK-010 | GitHub Actions CI/CD pipeline (lint → test → build → deploy) | DevOps | M | Backlog |
-| TASK-011 | Prometheus metrics + Grafana dashboard (all 3 services) | DevOps | M | Backlog |
-| TASK-012 | Recording scheduler + BullMQ jobs (object storage, not app server) | Backend | M | Backlog |
+| TASK-009 | Docker Compose dev stack (all services + health checks) | DevOps | S | ✅ Done (2026-04-24) |
+| TASK-010 | GitHub Actions CI/CD pipeline (lint → test → build → deploy) | DevOps | M | ✅ Done (2026-04-24) |
+| TASK-011 | Prometheus metrics + Grafana dashboard (all 3 services) | DevOps | M | ✅ Done (2026-04-24) |
+| TASK-012 | Recording scheduler + BullMQ jobs (object storage, not app server) | Backend | M | ✅ Done (2026-04-24) |
 
 ---
 
@@ -155,6 +155,18 @@
 - ✅ TASK-032 · Sensor & Asset Catalogue — 2026-04-24
 - ✅ TASK-034 · Role-split UI (ENGINEER role + ui_mode) — 2026-04-24
 - ✅ TASK-041 · BOP / Site Hierarchy Model — 2026-04-24
+- ✅ TASK-035 · Seismic Sensor Ingestion + Pattern Classification — 2026-04-24
+- ✅ TASK-036 · Acoustic Sensor Ingestion + Classification — 2026-04-24
+- ✅ TASK-037 · Thermal / LIDAR / Pan-image Ingestion Adapter — 2026-04-24
+- ✅ TASK-039 · Multi-Sensor Fusion Engine — 2026-04-24
+- ✅ TASK-038 · Use-case Visualization Layer (glyphs) — 2026-04-24
+- ✅ TASK-040 · Human-Readable Alerts on Live Map — 2026-04-24
+- ✅ TASK-033 · Multi-AOI Quadview Panel — 2026-04-24
+- ✅ TASK-042 · Engineering & Maintenance View — 2026-04-24
+- ✅ TASK-009 · Docker Compose Dev Stack — 2026-04-24
+- ✅ TASK-010 · GitHub Actions CI/CD — 2026-04-24
+- ✅ TASK-011 · Prometheus + Grafana — 2026-04-24
+- ✅ TASK-012 · Recording Scheduler + BullMQ — 2026-04-24
 
 ---
 

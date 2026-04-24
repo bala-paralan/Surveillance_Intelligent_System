@@ -45,6 +45,15 @@ export const App = () => {
         />
 
         <Route
+          path="/operator"
+          element={
+            <RequireAuth>
+              <OperatorDashboard />
+            </RequireAuth>
+          }
+        />
+
+        <Route
           path="/aoi"
           element={
             <RequireAuth>

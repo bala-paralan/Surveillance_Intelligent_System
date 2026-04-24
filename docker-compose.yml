@@ -1,0 +1,130 @@
+version: "3.9"
+
+networks:
+  sis-net:
+    driver: bridge
+
+volumes:
+  pgdata:
+  grafana-data:
+
+services:
+  # ── Infrastructure ────────────────────────────────────────────────────────────
+
+  postgres:
+    image: postgis/postgis:16-3.4
+    restart: unless-stopped
+    networks: [sis-net]
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: surveillanceos
+      POSTGRES_USER: sos
+      POSTGRES_PASSWORD: sos
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sos -d surveillanceos"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    networks: [sis-net]
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Application services ──────────────────────────────────────────────────────
+
+  backend:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.backend
+    restart: unless-stopped
+    networks: [sis-net]
+    ports:
+      - "3001:3001"
+      - "9091:9091"
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3001/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  analytics:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.analytics
+    restart: unless-stopped
+    networks: [sis-net]
+    ports:
+      - "8001:8001"
+      - "9092:9091"
+    environment:
+      REDIS_URL: "redis://redis:6379"
+      SEISMIC_SCENARIO: "${SEISMIC_SCENARIO:-NORMAL}"
+      ACOUSTIC_SCENARIO: "${ACOUSTIC_SCENARIO:-NORMAL}"
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8001/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  frontend:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.frontend
+    restart: unless-stopped
+    networks: [sis-net]
+    ports:
+      - "5173:5173"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  # ── Observability ─────────────────────────────────────────────────────────────
+
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    restart: unless-stopped
+    networks: [sis-net]
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./infra/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+      - "--web.console.templates=/usr/share/prometheus/consoles"
+
+  grafana:
+    image: grafana/grafana:10.4.0
+    restart: unless-stopped
+    networks: [sis-net]
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    environment:
+      GF_AUTH_DISABLE_LOGIN_FORM: "false"
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - grafana-data:/var/lib/grafana

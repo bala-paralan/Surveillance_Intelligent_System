@@ -4,6 +4,7 @@ import { exportAoi, importAois } from '@/api/aoi';
 import { AoiMap } from '@/components/map/AoiMap';
 import { AoiList } from '@/components/map/AoiList';
 import { CataloguePanel } from '@/components/catalogue/CataloguePanel';
+import { AlertTicker } from '@/components/alerts/AlertTicker';
 
 export const AoiPage = () => {
   const { aois, activeAoiId, fetchAois } = useAoiStore();
@@ -115,8 +116,11 @@ export const AoiPage = () => {
         {/* Map + Catalogue panel */}
         <div className="flex flex-col flex-1 overflow-hidden">
           {/* Map */}
-          <main className="flex-1 overflow-hidden">
+          <main className="flex-1 overflow-hidden relative">
             <AoiMap />
+            {activeAoiId !== null && (
+              <AlertTicker aoiId={activeAoiId} />
+            )}
           </main>
 
           {/* Sensor catalogue panel */}

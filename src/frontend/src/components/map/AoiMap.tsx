@@ -1,10 +1,11 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import maplibregl from 'maplibre-gl';
 import MapboxDraw from '@mapbox/mapbox-gl-draw';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import '@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css';
 import { useAoiStore } from '@/store/aoiStore';
 import { createAoi, type AoiPolygon } from '@/api/aoi';
+import { GlyphLayer } from '@/components/map/GlyphLayer';
 
 const DEFAULT_CENTER: [number, number] = [88.17, 21.96];
 const DEFAULT_ZOOM = 10;
@@ -22,6 +23,7 @@ export const AoiMap = () => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const drawRef = useRef<InstanceType<typeof MapboxDraw> | null>(null);
+  const [mapInstance, setMapInstance] = useState<maplibregl.Map | null>(null);
   const { aois, activeAoiId, addAoi, setActiveAoi } = useAoiStore();
 
   // Initialise map once
@@ -46,6 +48,7 @@ export const AoiMap = () => {
     map.addControl(draw as unknown as maplibregl.IControl);
     drawRef.current = draw;
     mapRef.current = map;
+    map.once('load', () => setMapInstance(map));
 
     const handleDrawCreate = (e: DrawCreateEvent): void => {
       const feature = e.features[0];
@@ -75,6 +78,7 @@ export const AoiMap = () => {
       map.remove();
       mapRef.current = null;
       drawRef.current = null;
+      setMapInstance(null);
     };
   }, [addAoi]);
 
@@ -156,6 +160,10 @@ export const AoiMap = () => {
           Draw AOI
         </button>
       </div>
+
+      {activeAoiId !== null && (
+        <GlyphLayer aoiId={activeAoiId} map={mapInstance} />
+      )}
     </div>
   );
 };

@@ -17,6 +17,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from analytics.api.routes import router
+from analytics.api.metrics import metrics_router
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +36,7 @@ app.add_middleware(
 )
 
 app.include_router(router)
+app.include_router(metrics_router)
 
 
 @app.on_event("startup")

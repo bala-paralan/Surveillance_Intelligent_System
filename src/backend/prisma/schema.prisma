@@ -94,7 +94,9 @@ model Camera {
   createdAt         DateTime     @default(now()) @map("created_at")
   updatedAt         DateTime     @updatedAt     @map("updated_at")
 
-  cameraZones CameraZone[]
+  cameraZones        CameraZone[]
+  recordingSchedules RecordingSchedule[] @relation("CameraRecordingSchedules")
+  recordings         Recording[]         @relation("CameraRecordings")
 
   @@index([siteId])
   @@index([status])
@@ -243,6 +245,123 @@ model Alert {
   @@index([acknowledged])
   @@index([createdAt])
   @@map("alerts")
+}
+
+// ── Recordings (TASK-012) ─────────────────────────────────────────────────────
+
+enum RecordingStatus {
+  SCHEDULED
+  RECORDING
+  PROCESSING
+  STORED
+  FAILED
+  EXPIRED
+}
+
+enum StorageTier {
+  HOT
+  WARM
+  COLD
+}
+
+model RecordingSchedule {
+  id        String   @id @default(cuid())
+  cameraId  String   @map("camera_id")
+  camera    Camera   @relation("CameraRecordingSchedules", fields: [cameraId], references: [id], onDelete: Cascade)
+  cronExpr  String   @map("cron_expr")
+  durationS Int      @map("duration_s")
+  enabled   Boolean  @default(true)
+  createdBy String   @map("created_by")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([cameraId])
+  @@map("recording_schedules")
+}
+
+model Recording {
+  id            String          @id @default(cuid())
+  cameraId      String          @map("camera_id")
+  camera        Camera          @relation("CameraRecordings", fields: [cameraId], references: [id], onDelete: Cascade)
+  startedAt     DateTime        @map("started_at")
+  endedAt       DateTime?       @map("ended_at")
+  durationS     Int?            @map("duration_s")
+  storagePath   String?         @map("storage_path")
+  storageTier   StorageTier     @default(HOT)
+  status        RecordingStatus @default(SCHEDULED)
+  fileSizeBytes BigInt?         @map("file_size_bytes")
+  createdAt     DateTime        @default(now()) @map("created_at")
+  updatedAt     DateTime        @updatedAt @map("updated_at")
+
+  @@index([cameraId])
+  @@index([status])
+  @@index([startedAt])
+  @@map("recordings")
+}
+
+// ── Sensor Events (TASK-035/036/037) ─────────────────────────────────────────
+
+enum SensorEventType {
+  SEISMIC_TUNNEL
+  SEISMIC_FOOTSTEP
+  SEISMIC_VEHICLE
+  SEISMIC_ANIMAL
+  SEISMIC_NOISE
+  ACOUSTIC_VOICE
+  ACOUSTIC_GUNSHOT
+  ACOUSTIC_VEHICLE
+  ACOUSTIC_DRONE
+  ACOUSTIC_ANIMAL
+  ACOUSTIC_NOISE
+  THERMAL_HUMAN
+  THERMAL_VEHICLE
+  LIDAR_MOTION
+  PAN_PERSON
+  PAN_VEHICLE
+}
+
+model SensorEvent {
+  id         String          @id @default(cuid())
+  sensorId   String          @map("sensor_id")
+  type       SensorEventType
+  aoiIds     String[]        @map("aoi_ids")
+  confidence Float
+  payload    Json            // type-specific data (direction, distance, bbox, etc.)
+  occurredAt DateTime        @map("occurred_at")
+  createdAt  DateTime        @default(now()) @map("created_at")
+
+  @@index([sensorId])
+  @@index([type])
+  @@index([occurredAt])
+  @@map("sensor_events")
+}
+
+// ── Fusion Outcomes (TASK-039) ────────────────────────────────────────────────
+
+model FusionOutcome {
+  id                 String   @id @default(cuid())
+  aoiId              String   @map("aoi_id")
+  outcomeClass       String   @map("outcome_class")
+  confidence         Float
+  supportingEventIds String[] @map("supporting_event_ids")
+  renderHint         Json     @map("render_hint")
+  firstSeen          DateTime @map("first_seen")
+  lastSeen           DateTime @map("last_seen")
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  @@index([aoiId])
+  @@index([createdAt])
+  @@map("fusion_outcomes")
+}
+
+model FusionWeight {
+  id          String   @id @default(cuid())
+  className   String   @unique @map("class_name")
+  prior       Float    @default(0.125)
+  likelihoods Json
+  updatedBy   String   @map("updated_by")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("fusion_weights")
 }
 
 // ── AOI — Areas of Interest (TASK-031) ───────────────────────────────────────
