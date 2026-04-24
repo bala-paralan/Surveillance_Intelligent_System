@@ -12,6 +12,12 @@ export interface JwtPayload {
   sub:   string;   // user id
   email: string;
   role:  Role;
+  /** Array form — backwards compat with single-role tokens */
+  roles: Role[];
+  scope: {
+    bop_ids:  string[];
+    zone_ids: string[];
+  };
   iat:   number;
   exp:   number;
 }
@@ -38,7 +44,17 @@ export const verifyJwt = (
   }
 
   try {
-    req.user = jwt.verify(token, config.JWT_ACCESS_SECRET) as JwtPayload;
+    const raw = jwt.verify(token, config.JWT_ACCESS_SECRET) as JwtPayload;
+
+    // Backwards compat: tokens without `roles` array use single `role`
+    if (!raw.roles) {
+      raw.roles = [raw.role];
+    }
+    if (!raw.scope) {
+      raw.scope = { bop_ids: [], zone_ids: [] };
+    }
+
+    req.user = raw;
     done();
   } catch {
     done(new UnauthorizedError('Invalid or expired token'));
@@ -51,6 +67,24 @@ export const requireRole = (...roles: Role[]) =>
     if (!req.user) { done(new UnauthorizedError()); return; }
     if (!roles.includes(req.user.role)) {
       done(new ForbiddenError(`Requires role: ${roles.join(' | ')}`));
+      return;
+    }
+    done();
+  };
+
+/**
+ * BOP scope gating factory — use after verifyJwt.
+ * ADMINs always pass; other roles must have the bopId in their scope.
+ */
+export const requireScope = (bopId: string) =>
+  (req: FastifyRequest, _reply: FastifyReply, done: HookHandlerDoneFunction): void => {
+    if (!req.user) { done(new UnauthorizedError()); return; }
+
+    const isAdmin = req.user.role === 'ADMIN';
+    const inScope = req.user.scope.bop_ids.includes(bopId);
+
+    if (!isAdmin && !inScope) {
+      done(new ForbiddenError(`Access to BOP ${bopId} not permitted`));
       return;
     }
     done();

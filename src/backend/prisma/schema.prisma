@@ -16,6 +16,7 @@ enum Role {
   ADMIN
   OPERATOR
   VIEWER
+  ENGINEER
 }
 
 enum CameraStatus {
@@ -24,6 +25,22 @@ enum CameraStatus {
   DEGRADED
   ERROR
   MAINTENANCE
+}
+
+enum SensorType {
+  SEISMIC
+  ACOUSTIC
+  THERMAL
+  LIDAR
+  PAN
+  CAMERA
+}
+
+enum SensorHealth {
+  HEALTHY
+  DEGRADED
+  OFFLINE
+  UNKNOWN
 }
 
 // ── Auth ─────────────────────────────────────────────────────────────────────
@@ -35,10 +52,14 @@ model User {
   displayName  String?        @map("display_name")
   role         Role           @default(VIEWER)
   active       Boolean        @default(true)
+  bopScope     String[]       @default([]) @map("bop_scope")
+  zoneScope    String[]       @default([]) @map("zone_scope")
+  uiMode       String?        @map("ui_mode")
   createdAt    DateTime       @default(now()) @map("created_at")
   updatedAt    DateTime       @updatedAt     @map("updated_at")
 
   refreshTokens RefreshToken[]
+  aois          Aoi[]
 
   @@map("users")
 }
@@ -73,7 +94,172 @@ model Camera {
   createdAt         DateTime     @default(now()) @map("created_at")
   updatedAt         DateTime     @updatedAt     @map("updated_at")
 
+  cameraZones CameraZone[]
+
   @@index([siteId])
   @@index([status])
   @@map("cameras")
+}
+
+// ── BOP / Site Hierarchy ──────────────────────────────────────────────────────
+
+model Bop {
+  id        String    @id @default(cuid())
+  code      String    @unique
+  name      String
+  zones     String[]  @default([])
+  assets    String[]  @default([])
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt     @map("updated_at")
+
+  bopZones  BopZone[]
+  bopAssets Asset[]
+
+  @@map("bops")
+}
+
+model BopZone {
+  id           String    @id @default(cuid())
+  bopId        String    @map("bop_id")
+  bop          Bop       @relation(fields: [bopId], references: [id], onDelete: Cascade)
+  code         String
+  name         String
+  parentZoneId String?   @map("parent_zone_id")
+  parentZone   BopZone?  @relation("ZoneHierarchy", fields: [parentZoneId], references: [id])
+  childZones   BopZone[] @relation("ZoneHierarchy")
+  sensors      String[]  @default([])
+
+  assets       Asset[]
+  aois         Aoi[]
+  sensorDevices Sensor[]
+
+  @@unique([bopId, code])
+  @@map("bop_zones")
+}
+
+model Asset {
+  id        String    @id @default(cuid())
+  bopId     String    @map("bop_id")
+  bop       Bop       @relation(fields: [bopId], references: [id], onDelete: Cascade)
+  zoneId    String?   @map("zone_id")
+  zone      BopZone?  @relation(fields: [zoneId], references: [id])
+  kind      String
+  lat       Float
+  lon       Float
+  metadata  Json      @default("{}")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@index([bopId])
+  @@index([zoneId])
+  @@map("assets")
+}
+
+model GisSyncLog {
+  id          String    @id @default(cuid())
+  startedAt   DateTime  @default(now()) @map("started_at")
+  finishedAt  DateTime? @map("finished_at")
+  sourceHash  String?   @map("source_hash")
+  added       Int       @default(0)
+  updated     Int       @default(0)
+  removed     Int       @default(0)
+  status      String    @default("running")
+  errorMsg    String?   @map("error_msg")
+
+  @@map("gis_sync_logs")
+}
+
+// ── Sensors (TASK-032) ────────────────────────────────────────────────────────
+
+model Sensor {
+  id               String       @id @default(cuid())
+  type             SensorType
+  lat              Float
+  lon              Float
+  bopZoneId        String?      @map("bop_zone_id")
+  bopZone          BopZone?     @relation(fields: [bopZoneId], references: [id])
+  installedOn      DateTime     @map("installed_on")
+  lastHeartbeat    DateTime?    @map("last_heartbeat")
+  health           SensorHealth @default(UNKNOWN)
+  encryptedSecrets String?      @map("encrypted_secrets")
+  createdAt        DateTime     @default(now()) @map("created_at")
+
+  @@index([bopZoneId])
+  @@map("sensors")
+}
+
+// ── Camera Zones (TASK-007) ───────────────────────────────────────────────────
+
+model CameraZone {
+  id        String   @id @default(cuid())
+  cameraId  String   @map("camera_id")
+  zoneId    String   @map("zone_id")
+  label     String?
+  polygon   Json     // array of [x, y] normalised coordinate pairs
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  camera    Camera   @relation(fields: [cameraId], references: [id], onDelete: Cascade)
+
+  @@unique([cameraId, zoneId])
+  @@map("camera_zones")
+}
+
+// ── Alerts (TASK-008) ─────────────────────────────────────────────────────────
+
+enum AlertType {
+  INTRUSION
+  MOTION
+  PERSON
+  VEHICLE
+  SEISMIC
+  ACOUSTIC
+  SYSTEM
+}
+
+enum AlertSeverity {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+}
+
+model Alert {
+  id             String        @id @default(cuid())
+  type           AlertType     @default(INTRUSION)
+  severity       AlertSeverity @default(MEDIUM)
+  cameraId       String?       @map("camera_id")
+  bopZoneId      String?       @map("bop_zone_id")
+  aoiId          String?       @map("aoi_id")
+  message        String
+  metadata       Json?
+  acknowledged   Boolean       @default(false)
+  acknowledgedBy String?       @map("acknowledged_by")
+  acknowledgedAt DateTime?     @map("acknowledged_at")
+  resolvedAt     DateTime?     @map("resolved_at")
+  createdAt      DateTime      @default(now()) @map("created_at")
+
+  @@index([cameraId])
+  @@index([bopZoneId])
+  @@index([acknowledged])
+  @@index([createdAt])
+  @@map("alerts")
+}
+
+// ── AOI — Areas of Interest (TASK-031) ───────────────────────────────────────
+
+model Aoi {
+  id           String    @id @default(cuid())
+  name         String
+  bopZoneId    String?   @map("bop_zone_id")
+  bopZone      BopZone?  @relation(fields: [bopZoneId], references: [id])
+  geometryJson String    @map("geometry_json")  // GeoJSON polygon stored as text
+  createdById  String    @map("created_by_id")
+  createdBy    User      @relation(fields: [createdById], references: [id])
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt     @map("updated_at")
+  deletedAt    DateTime? @map("deleted_at")  // soft-delete
+
+  @@index([bopZoneId])
+  @@index([createdById])
+  @@map("aois")
 }

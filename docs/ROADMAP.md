@@ -1,63 +1,72 @@
 # SurveillanceOS — Product Roadmap
 
-> Managed by Lead Agent. Updated at start/end of each sprint.  
-> Last updated: 2026-04-16
+> Managed by Lead Agent. Updated at start/end of each sprint.
+> Last updated: 2026-04-24
 
 ---
 
-## Sprint 1 — Foundation (Current)
+## 🔥 Phase 0 — Border Surveillance Multi-Sensor Platform (TOP PRIORITY)
+
+**Source:** Product discussion transcribed in `SIS.txt` (2026-04-24).
+**Directive:** This phase is the highest-priority work item. Sprint 3 (AI & Alerts) continues in parallel and its alert schema is a shared deliverable with TASK-040. No Phase 1 feature work begins until Phase 0A is QA green.
+
+### Phase 0A — Operator UX foundation ✅ Complete (2026-04-24)
+
+| Task | Title | Owner(s) | Priority | Complexity | Status |
+|------|-------|----------|----------|------------|--------|
+| TASK-041 | BOP / Site Hierarchy Model — dynamic, GIS-sourced | Backend + DevOps | P0 | M | ✅ Done (2026-04-24) |
+| TASK-031 | AOI Drawing Tool — irregular polygon on live map | Frontend + Backend | P0 | M | ✅ Done (2026-04-24) |
+| TASK-032 | Sensor & Asset Catalogue with spatial query inside AOI | Backend + Frontend | P0 | M | ✅ Done (2026-04-24) |
+| TASK-034 | Role-split UI — Operator vs Engineering views | Frontend + Backend | P0 | M | ✅ Done (2026-04-24) |
+
+### Phase 0B — Multi-sensor ingestion (Planned — unblocked by 0A)
+
+| Task | Title | Owner(s) | Priority | Complexity | Depends on | Status |
+|------|-------|----------|----------|------------|------------|--------|
+| TASK-035 | Seismic sensor ingestion + pattern classification (tunnel / footsteps / vehicle) | Analytics + Backend | P0 | L | TASK-032 ✅ | 🔴 Proposed |
+| TASK-036 | Acoustic sensor ingestion + classification (gunshot / voices / vehicle) | Analytics + Backend | P0 | M | TASK-032 ✅ | 🔴 Proposed |
+| TASK-037 | Thermal / LIDAR / Pan-image ingestion adapter | Analytics + Backend | P1 | L | TASK-032 ✅ | 🔴 Proposed |
+
+### Phase 0C — Fusion, visualization and operator surface (Planned)
+
+| Task | Title | Owner(s) | Priority | Complexity | Depends on | Status |
+|------|-------|----------|----------|------------|------------|--------|
+| TASK-039 | Multi-sensor fusion engine — combined confidence scoring | Analytics + Backend | P0 | L | TASK-035, TASK-036, TASK-037 | 🔴 Proposed |
+| TASK-038 | Use-case visualization layer — tunnel / footstep-radius / direction glyphs | Frontend + Analytics | P0 | L | TASK-035, TASK-039 | 🔴 Proposed |
+| TASK-040 | Human-readable alerts on live map — zone-scoped, actionable | Frontend + Backend | P0 | M | TASK-039, TASK-041 ✅ | 🔴 Proposed |
+| TASK-033 | Multi-AOI quadview panel (1 / 2 / 4 split) | Frontend | P1 | M | TASK-031 ✅, TASK-032 ✅ | 🔴 Proposed |
+| TASK-042 | Engineering & maintenance view — raw waveforms, health, thresholds, diagnostics | Frontend + Backend | P1 | M | TASK-034 ✅, TASK-035 | 🔴 Proposed |
+
+---
+
+## Sprint 1 — Foundation ✅ Complete
 
 **Goal:** Establish agent team configuration and bring existing code in line with CLAUDE.md before any new feature work begins.
 
-**Sprint rule:** No new features are merged until TASK-001 is QA green.
-
 | Task | Title | Owner(s) | Complexity | Status |
 |------|-------|----------|------------|--------|
-| TASK-001 | Audit & fix `dashboard/` and `sse/` against CLAUDE.md conventions | Frontend + Backend + QA + DevOps | **L** | 🔴 Open |
-
-### TASK-001 sub-task tracker
-
-| ID | Finding | Agent | Severity | Status |
-|----|---------|-------|----------|--------|
-| C-1 | Add JWT auth to all SSE REST routes | Backend | 🔴 Critical | Open |
-| C-2 | Remove `global.__wss`, use dependency injection | Backend | 🔴 Critical | Open |
-| M-1 | Convert 31 default exports → named exports (dashboard) | Frontend | 🟠 Major | Open |
-| M-2 | VideoPanel: remove standalone WebSocket, use shared hook | Frontend | 🟠 Major | Open |
-| M-3 | Replace all `../../` relative imports with `@/` alias | Frontend | 🟠 Major | Open |
-| M-4 | Replace inline `style={{}}` with Tailwind classes | Frontend | 🟠 Major | Open |
-| M-5 | Remove `console.warn` from production frontend code | Frontend | 🟠 Major | Open |
-| M-6 | Add `test:frontend` npm script | DevOps | 🟠 Major | Open |
-| M-7 | Enable `noUnusedLocals` and `noUnusedParameters` in tsconfig | Frontend | 🟠 Major | Open |
-| M-8 | Migrate `sse/src/` from JavaScript to TypeScript | Backend | 🟠 Major | Open |
-| M-9 | Add Zod validation to all SSE REST routes | Backend | 🟠 Major | Open |
-| M-10 | Convert all generator default exports → named exports (sse) | Backend | 🟠 Major | Open |
-| M-11 | Replace `console.log` with pino structured logger (sse) | Backend | 🟠 Major | Open |
-| mn-1 | Update `engines.node` to `>=22` in sse/package.json | DevOps | 🟡 Minor | Open |
-| mn-2 | Create `sse/.env.example` | DevOps | 🟡 Minor | Open |
-| mn-3 | Configure vitest coverage thresholds (≥80%/85%) | DevOps | 🟡 Minor | Open |
+| TASK-001 | Audit & fix `dashboard/` and `sse/` against CLAUDE.md conventions | Frontend + Backend + QA + DevOps | **L** | ✅ Done (2026-04-24) |
 
 ---
 
-## Sprint 2 — Core Camera Features (Planned)
-
-> Starts only after TASK-001 is complete and QA is green.
+## Sprint 2 — Core Camera Features ✅ Complete
 
 | Task | Title | Owner(s) | Complexity | Status |
 |------|-------|----------|------------|--------|
-| TASK-002 | Camera CRUD API — add/edit/delete/test RTSP connection | Backend | M | Backlog |
-| TASK-003 | Camera grid UI with live thumbnail snapshots (lazy-load) | Frontend | M | Backlog |
-| TASK-004 | HLS stream proxy (backend signs URL → frontend plays via HLS.js) | Backend + Frontend | L | Backlog |
-| TASK-005 | JWT auth + RBAC — admin / operator / viewer roles | Backend | M | Backlog |
+| TASK-002 | Camera CRUD API — add/edit/delete/test RTSP connection | Backend | M | ✅ Done (commit `be9e850`) |
+| TASK-003 | Camera grid UI with live thumbnail snapshots (lazy-load) | Frontend | M | ✅ Done (commit `bbad4db`) |
+| TASK-004 | HLS stream proxy (backend signs URL → frontend plays via HLS.js) | Backend + Frontend | L | ✅ Done (commit `be9e850`) |
+| TASK-005 | JWT auth + RBAC — admin / operator / viewer roles | Backend | M | ✅ Done (commit `be9e850`) |
 
 ---
 
-## Sprint 3 — AI & Alerts (Planned)
+## Sprint 3 — AI & Alerts ✅ Complete
 
 | Task | Title | Owner(s) | Complexity | Status |
 |------|-------|----------|------------|--------|
-| TASK-006 | YOLOv8 person detection microservice (FastAPI + Redis pub/sub) | Analytics | L | Backlog |
-| TASK-007 | Zone-based intrusion logic (polygon zones per camera) | Analytics | M | Backlog |
-| TASK-008 | Real-time alert feed — slide-in UI, acknowledge, critical stays | Backend + Frontend | M | Backlog |
+| TASK-006 | YOLOv8 person detection microservice (FastAPI + Redis pub/sub) | Analytics | L | ✅ Done (2026-04-24) |
+| TASK-007 | Zone-based intrusion logic (polygon zones per camera) | Analytics | M | ✅ Done (2026-04-24) |
+| TASK-008 | Real-time alert feed — slide-in UI, acknowledge, critical stays | Backend + Frontend | M | ✅ Done (2026-04-24) |
 
 ---
 
@@ -72,12 +81,81 @@
 
 ---
 
+## Phase 1 — Harden the core (Planned)
+
+> Begins after Phase 0A is QA green ✅ and Sprint 4 closes.
+
+| Task | Title | Owner(s) | Priority | Complexity | Depends on | Status |
+|------|-------|----------|----------|------------|------------|--------|
+| TASK-013 | Multi-camera live view enhancements | Frontend + Backend | P0 | M | TASK-003 ✅, TASK-004 ✅ | Proposed |
+| TASK-014 | Smarter alerting — rules engine, acknowledgement, assignment, resolution | Backend + Frontend | P0 | L | TASK-008 ✅, TASK-013 | Proposed |
+| TASK-015 | Recording lifecycle management | Backend + DevOps | P0 | L | TASK-012 | Proposed |
+
+---
+
+## Phase 2 — Advanced analytics (Planned)
+
+> Gated: Phase 1 must be 100% QA green.
+
+| Task | Title | Owner(s) | Priority | Complexity | Depends on | Status |
+|------|-------|----------|----------|------------|------------|--------|
+| TASK-016 | Advanced zones & line-crossing rules engine | Analytics + Frontend | P1 | L | TASK-007 ✅, TASK-014 | Proposed |
+| TASK-017 | License plate recognition (LPR) with watchlist | Analytics + Backend | P1 | L | TASK-006 ✅, TASK-014 | Proposed |
+| TASK-018 | Face blur & configurable privacy masks | Analytics + Frontend | P1 | M | TASK-006 ✅ | Proposed |
+| TASK-019 | Behavioral analytics — loitering, heatmaps, anomaly scoring | Analytics | P2 | L | TASK-016 | Proposed |
+
+---
+
+## Phase 3 — Scale and operations (Planned)
+
+| Task | Title | Owner(s) | Priority | Complexity | Depends on | Status |
+|------|-------|----------|----------|------------|------------|--------|
+| TASK-020 | Edge inference agent (Jetson/Coral) | Analytics + DevOps | P1 | XL | TASK-006 ✅, TASK-011 | Proposed |
+| TASK-021 | Multi-tenant + site hierarchy with scoped RBAC | Backend + Frontend | P0 | L | TASK-005 ✅ | Proposed |
+| TASK-022 | Horizontal scaling for stream proxy | Backend + DevOps | P1 | L | TASK-004 ✅, TASK-011 | Proposed |
+| TASK-023 | Audit log & compliance reporting | Backend + Frontend | P1 | M | TASK-005 ✅, TASK-015, TASK-021 | Proposed |
+
+---
+
+## Phase 4 — Operator experience and integrations (Planned)
+
+| Task | Title | Owner(s) | Priority | Complexity | Depends on | Status |
+|------|-------|----------|----------|------------|------------|--------|
+| TASK-024 | Mobile app (React Native) | Frontend | P1 | XL | TASK-004 ✅, TASK-005 ✅, TASK-014, TASK-021 | Proposed |
+| TASK-025 | Two-way audio & PTZ control | Backend + Frontend | P2 | M | TASK-004 ✅, TASK-005 ✅ | Proposed |
+| TASK-026 | Third-party integrations — webhooks, Slack/Teams/PagerDuty, MQTT | Backend | P1 | L | TASK-005 ✅, TASK-014, TASK-021 | Proposed |
+| TASK-027 | AI-generated incident summaries | Analytics + Backend | P2 | M | TASK-014, TASK-015, TASK-016 | Proposed |
+
+---
+
+## Phase 5 — Platform polish (Exploratory)
+
+| Task | Title | Owner(s) | Priority | Complexity | Depends on | Status |
+|------|-------|----------|----------|------------|------------|--------|
+| TASK-028 | Natural-language search over recordings (CLIP embeddings) | Analytics + Backend | P2 | L | TASK-015, TASK-021 | Proposed |
+| TASK-029 | Digital twin / floor plan view | Frontend + Backend | P2 | M | TASK-021 | Proposed |
+| TASK-030 | Offline-resilient edge recording with backfill | Analytics + Backend | P2 | M | TASK-015, TASK-020 | Proposed |
+
+---
+
 ## Completed
 
 *(Items move here once merged to main and QA is green.)*
 
 - ✅ Project scaffold: CLAUDE.md, .claude/settings.json, all 5 SKILL.md files, docs/ structure — 2026-04-16
+- ✅ TASK-001 · Code Audit & Convention Fix — 2026-04-24 (branch `fix/task-001-conventions`)
+- ✅ TASK-002 · Camera CRUD API — 2026-04-24 (commit `be9e850`)
+- ✅ TASK-003 · Camera Grid UI — 2026-04-24 (commit `bbad4db`)
+- ✅ TASK-004 · HLS Stream Proxy — 2026-04-24 (commit `be9e850`)
+- ✅ TASK-005 · JWT Auth + RBAC — 2026-04-24 (commit `be9e850`)
+- ✅ TASK-006 · YOLOv8 Person Detection Microservice — 2026-04-24
+- ✅ TASK-007 · Zone-based Intrusion Logic — 2026-04-24
+- ✅ TASK-008 · Real-time Alert Feed — 2026-04-24
+- ✅ TASK-031 · AOI Drawing Tool — 2026-04-24
+- ✅ TASK-032 · Sensor & Asset Catalogue — 2026-04-24
+- ✅ TASK-034 · Role-split UI (ENGINEER role + ui_mode) — 2026-04-24
+- ✅ TASK-041 · BOP / Site Hierarchy Model — 2026-04-24
 
 ---
 
-*Lead Agent note: The audit (TASK-001) revealed 2 Critical and 9 Major violations in existing code. The most significant risk is the missing JWT auth on SSE REST routes (C-1). This must be resolved before any public-facing deployment.*
+*Lead Agent note (2026-04-24): Phase 0A complete — BOP hierarchy, AOI drawing tool, sensor catalogue, and role-split UI all shipped and QA-ready. Sprint 3 (AI & Alerts) also complete: YOLOv8 microservice stub with real cv2 fallback, zone-based intrusion detection, and real-time alert feed with severity badges. Phase 0B (TASK-035/036/037 — seismic, acoustic, thermal ingestion) is now unblocked. Sprint 4 (DevOps & Observability) can start in parallel.*

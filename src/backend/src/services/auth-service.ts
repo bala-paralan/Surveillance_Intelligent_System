@@ -14,10 +14,24 @@ const BCRYPT_ROUNDS = 12;
 
 // ── Token helpers ────────────────────────────────────────────────────────────
 
-const issueAccessToken = (sub: string, email: string, role: Role): string =>
-  jwt.sign({ sub, email, role }, config.JWT_ACCESS_SECRET, {
-    expiresIn: config.JWT_ACCESS_TTL,
-  });
+const issueAccessToken = (
+  sub: string,
+  email: string,
+  role: Role,
+  bopScope: string[] = [],
+  zoneScope: string[] = []
+): string =>
+  jwt.sign(
+    {
+      sub,
+      email,
+      role,
+      roles: [role],
+      scope: { bop_ids: bopScope, zone_ids: zoneScope },
+    },
+    config.JWT_ACCESS_SECRET,
+    { expiresIn: config.JWT_ACCESS_TTL }
+  );
 
 const issueRefreshToken = (): string => randomBytes(48).toString('hex');
 
@@ -45,7 +59,7 @@ export const loginUser = async (
   });
 
   return {
-    accessToken:  issueAccessToken(user.id, user.email, user.role),
+    accessToken:  issueAccessToken(user.id, user.email, user.role, user.bopScope ?? [], user.zoneScope ?? []),
     refreshToken: rawRefresh,
   };
 };
@@ -82,7 +96,7 @@ export const refreshTokens = async (
   });
 
   return {
-    accessToken:  issueAccessToken(matched.userId, matched.user.email, matched.user.role),
+    accessToken:  issueAccessToken(matched.userId, matched.user.email, matched.user.role, matched.user.bopScope ?? [], matched.user.zoneScope ?? []),
     refreshToken: newRaw,
   };
 };
