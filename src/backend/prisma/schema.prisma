@@ -1,0 +1,79 @@
+// SurveillanceOS — Prisma Schema
+// Run: npx prisma migrate dev --name init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ── Enums ────────────────────────────────────────────────────────────────────
+
+enum Role {
+  ADMIN
+  OPERATOR
+  VIEWER
+}
+
+enum CameraStatus {
+  ONLINE
+  OFFLINE
+  DEGRADED
+  ERROR
+  MAINTENANCE
+}
+
+// ── Auth ─────────────────────────────────────────────────────────────────────
+
+model User {
+  id           String         @id @default(cuid())
+  email        String         @unique
+  passwordHash String         @map("password_hash")
+  displayName  String?        @map("display_name")
+  role         Role           @default(VIEWER)
+  active       Boolean        @default(true)
+  createdAt    DateTime       @default(now()) @map("created_at")
+  updatedAt    DateTime       @updatedAt     @map("updated_at")
+
+  refreshTokens RefreshToken[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique @map("token_hash")  // bcrypt hash of the opaque token
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+// ── Cameras ──────────────────────────────────────────────────────────────────
+
+model Camera {
+  id                String       @id @default(cuid())
+  name              String
+  rtspUrlEncrypted  String       @map("rtsp_url_encrypted")   // AES-256-CBC encrypted
+  usernameEncrypted String?      @map("username_encrypted")
+  passwordEncrypted String?      @map("password_encrypted")
+  manufacturer      String?
+  model             String?
+  siteId            String?      @map("site_id")
+  location          String?
+  status            CameraStatus @default(OFFLINE)
+  lastSeenAt        DateTime?    @map("last_seen_at")
+  createdBy         String       @map("created_by")
+  createdAt         DateTime     @default(now()) @map("created_at")
+  updatedAt         DateTime     @updatedAt     @map("updated_at")
+
+  @@index([siteId])
+  @@index([status])
+  @@map("cameras")
+}
