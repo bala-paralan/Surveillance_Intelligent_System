@@ -6,24 +6,57 @@ import '@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css';
 import { useAoiStore } from '@/store/aoiStore';
 import { createAoi, type AoiPolygon } from '@/api/aoi';
 import { GlyphLayer } from '@/components/map/GlyphLayer';
+import {
+  DEFAULT_BASEMAPS,
+  DEFAULT_LAYER_VISIBILITY,
+  MapControls,
+  type LayerVisibility,
+} from '@/components/map/MapControls';
 
 const DEFAULT_CENTER: [number, number] = [88.17, 21.96];
 const DEFAULT_ZOOM = 10;
-const MAP_STYLE = 'https://demotiles.maplibre.org/style.json';
 
 interface DrawCreateEvent {
   features: GeoJSON.Feature[];
 }
 
-interface DrawSelectionChangeEvent {
-  features: GeoJSON.Feature[];
-}
+// Inline OSM raster style — used for the "OSM" basemap option since it
+// needs no key. Credit/attribution per OSM tile usage policy.
+const OSM_RASTER_STYLE: maplibregl.StyleSpecification = {
+  version: 8,
+  sources: {
+    'osm-raster': {
+      type: 'raster',
+      tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+      tileSize: 256,
+      attribution: '© OpenStreetMap contributors',
+      maxzoom: 19,
+    },
+  },
+  layers: [
+    {
+      id: 'osm-raster-layer',
+      type: 'raster',
+      source: 'osm-raster',
+    },
+  ],
+};
+
+const styleUrlFor = (id: string): string | maplibregl.StyleSpecification => {
+  if (id === 'osm') return OSM_RASTER_STYLE;
+  const found = DEFAULT_BASEMAPS.find((b) => b.id === id);
+  return found?.styleUrl !== undefined && found.styleUrl !== ''
+    ? found.styleUrl
+    : DEFAULT_BASEMAPS[0]!.styleUrl;
+};
 
 export const AoiMap = () => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const drawRef = useRef<InstanceType<typeof MapboxDraw> | null>(null);
   const [mapInstance, setMapInstance] = useState<maplibregl.Map | null>(null);
+  const [basemap, setBasemap] = useState<string>('default');
+  const [visibility, setVisibility] = useState<LayerVisibility>(DEFAULT_LAYER_VISIBILITY);
   const { aois, activeAoiId, addAoi, setActiveAoi } = useAoiStore();
 
   // Initialise map once
@@ -32,7 +65,7 @@ export const AoiMap = () => {
 
     const map = new maplibregl.Map({
       container: mapContainerRef.current,
-      style: MAP_STYLE,
+      style: styleUrlFor('default'),
       center: DEFAULT_CENTER,
       zoom: DEFAULT_ZOOM,
     });
@@ -44,7 +77,6 @@ export const AoiMap = () => {
       controls: { polygon: false, trash: true },
     });
 
-    // MapboxDraw expects a mapbox-style map; cast to satisfy the type
     map.addControl(draw as unknown as maplibregl.IControl);
     drawRef.current = draw;
     mapRef.current = map;
@@ -81,6 +113,13 @@ export const AoiMap = () => {
       setMapInstance(null);
     };
   }, [addAoi]);
+
+  // Switch basemap when user picks a different style
+  useEffect(() => {
+    const map = mapRef.current;
+    if (map === null) return;
+    map.setStyle(styleUrlFor(basemap));
+  }, [basemap]);
 
   // Sync AOI layers whenever aois list changes
   useEffect(() => {
@@ -122,6 +161,7 @@ export const AoiMap = () => {
         id: fillId,
         type: 'fill',
         source: srcId,
+        layout: { visibility: visibility.aoi ? 'visible' : 'none' },
         paint: {
           'fill-color': isActive ? '#3b82f6' : '#6366f1',
           'fill-opacity': isActive ? 0.4 : 0.25,
@@ -132,6 +172,7 @@ export const AoiMap = () => {
         id: outlineId,
         type: 'line',
         source: srcId,
+        layout: { visibility: visibility.aoi ? 'visible' : 'none' },
         paint: {
           'line-color': isActive ? '#93c5fd' : '#a5b4fc',
           'line-width': isActive ? 2.5 : 1.5,
@@ -142,11 +183,28 @@ export const AoiMap = () => {
         setActiveAoi(aoi.id);
       });
     });
-  }, [aois, activeAoiId, setActiveAoi]);
+  }, [aois, activeAoiId, setActiveAoi, visibility.aoi, mapInstance]);
+
+  // Apply AOI layer visibility toggle without rebuilding sources
+  useEffect(() => {
+    const map = mapRef.current;
+    if (map === null || !map.isStyleLoaded()) return;
+    const layers = map.getStyle().layers ?? [];
+    const v = visibility.aoi ? 'visible' : 'none';
+    layers.forEach((layer) => {
+      if (layer.id.startsWith('aoi-fill-') || layer.id.startsWith('aoi-outline-')) {
+        map.setLayoutProperty(layer.id, 'visibility', v);
+      }
+    });
+  }, [visibility.aoi, mapInstance]);
 
   const handleDrawPolygon = (): void => {
     drawRef.current?.changeMode('draw_polygon');
   };
+
+  // GlyphLayer renders both detections and fused threats today; treat the
+  // two visibility flags as a union until a separate detection layer exists.
+  const showGlyphs = visibility.detections || visibility.threats;
 
   return (
     <div className="relative w-full h-full">
@@ -161,7 +219,14 @@ export const AoiMap = () => {
         </button>
       </div>
 
-      {activeAoiId !== null && (
+      <MapControls
+        visibility={visibility}
+        onVisibilityChange={setVisibility}
+        basemap={basemap}
+        onBasemapChange={setBasemap}
+      />
+
+      {activeAoiId !== null && showGlyphs && (
         <GlyphLayer aoiId={activeAoiId} map={mapInstance} />
       )}
     </div>
