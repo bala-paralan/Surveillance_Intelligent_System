@@ -1,0 +1,384 @@
+// SurveillanceOS — Prisma Schema
+// Run: npx prisma migrate dev --name init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ── Enums ────────────────────────────────────────────────────────────────────
+
+enum Role {
+  ADMIN
+  OPERATOR
+  VIEWER
+  ENGINEER
+}
+
+enum CameraStatus {
+  ONLINE
+  OFFLINE
+  DEGRADED
+  ERROR
+  MAINTENANCE
+}
+
+enum SensorType {
+  SEISMIC
+  ACOUSTIC
+  THERMAL
+  LIDAR
+  PAN
+  CAMERA
+}
+
+enum SensorHealth {
+  HEALTHY
+  DEGRADED
+  OFFLINE
+  UNKNOWN
+}
+
+// ── Auth ─────────────────────────────────────────────────────────────────────
+
+model User {
+  id           String         @id @default(cuid())
+  email        String         @unique
+  passwordHash String         @map("password_hash")
+  displayName  String?        @map("display_name")
+  role         Role           @default(VIEWER)
+  active       Boolean        @default(true)
+  bopScope     String[]       @default([]) @map("bop_scope")
+  zoneScope    String[]       @default([]) @map("zone_scope")
+  uiMode       String?        @map("ui_mode")
+  createdAt    DateTime       @default(now()) @map("created_at")
+  updatedAt    DateTime       @updatedAt     @map("updated_at")
+
+  refreshTokens RefreshToken[]
+  aois          Aoi[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique @map("token_hash")  // bcrypt hash of the opaque token
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+// ── Cameras ──────────────────────────────────────────────────────────────────
+
+model Camera {
+  id                String       @id @default(cuid())
+  name              String
+  rtspUrlEncrypted  String       @map("rtsp_url_encrypted")   // AES-256-CBC encrypted
+  usernameEncrypted String?      @map("username_encrypted")
+  passwordEncrypted String?      @map("password_encrypted")
+  manufacturer      String?
+  model             String?
+  siteId            String?      @map("site_id")
+  location          String?
+  status            CameraStatus @default(OFFLINE)
+  lastSeenAt        DateTime?    @map("last_seen_at")
+  createdBy         String       @map("created_by")
+  createdAt         DateTime     @default(now()) @map("created_at")
+  updatedAt         DateTime     @updatedAt     @map("updated_at")
+
+  cameraZones        CameraZone[]
+  recordingSchedules RecordingSchedule[] @relation("CameraRecordingSchedules")
+  recordings         Recording[]         @relation("CameraRecordings")
+
+  @@index([siteId])
+  @@index([status])
+  @@map("cameras")
+}
+
+// ── BOP / Site Hierarchy ──────────────────────────────────────────────────────
+
+model Bop {
+  id        String    @id @default(cuid())
+  code      String    @unique
+  name      String
+  zones     String[]  @default([])
+  assets    String[]  @default([])
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt     @map("updated_at")
+
+  bopZones  BopZone[]
+  bopAssets Asset[]
+
+  @@map("bops")
+}
+
+model BopZone {
+  id           String    @id @default(cuid())
+  bopId        String    @map("bop_id")
+  bop          Bop       @relation(fields: [bopId], references: [id], onDelete: Cascade)
+  code         String
+  name         String
+  parentZoneId String?   @map("parent_zone_id")
+  parentZone   BopZone?  @relation("ZoneHierarchy", fields: [parentZoneId], references: [id])
+  childZones   BopZone[] @relation("ZoneHierarchy")
+  sensors      String[]  @default([])
+
+  assets       Asset[]
+  aois         Aoi[]
+  sensorDevices Sensor[]
+
+  @@unique([bopId, code])
+  @@map("bop_zones")
+}
+
+model Asset {
+  id        String    @id @default(cuid())
+  bopId     String    @map("bop_id")
+  bop       Bop       @relation(fields: [bopId], references: [id], onDelete: Cascade)
+  zoneId    String?   @map("zone_id")
+  zone      BopZone?  @relation(fields: [zoneId], references: [id])
+  kind      String
+  lat       Float
+  lon       Float
+  metadata  Json      @default("{}")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@index([bopId])
+  @@index([zoneId])
+  @@map("assets")
+}
+
+model GisSyncLog {
+  id          String    @id @default(cuid())
+  startedAt   DateTime  @default(now()) @map("started_at")
+  finishedAt  DateTime? @map("finished_at")
+  sourceHash  String?   @map("source_hash")
+  added       Int       @default(0)
+  updated     Int       @default(0)
+  removed     Int       @default(0)
+  status      String    @default("running")
+  errorMsg    String?   @map("error_msg")
+
+  @@map("gis_sync_logs")
+}
+
+// ── Sensors (TASK-032) ────────────────────────────────────────────────────────
+
+model Sensor {
+  id               String       @id @default(cuid())
+  type             SensorType
+  lat              Float
+  lon              Float
+  bopZoneId        String?      @map("bop_zone_id")
+  bopZone          BopZone?     @relation(fields: [bopZoneId], references: [id])
+  installedOn      DateTime     @map("installed_on")
+  lastHeartbeat    DateTime?    @map("last_heartbeat")
+  health           SensorHealth @default(UNKNOWN)
+  encryptedSecrets String?      @map("encrypted_secrets")
+  createdAt        DateTime     @default(now()) @map("created_at")
+
+  @@index([bopZoneId])
+  @@map("sensors")
+}
+
+// ── Camera Zones (TASK-007) ───────────────────────────────────────────────────
+
+model CameraZone {
+  id        String   @id @default(cuid())
+  cameraId  String   @map("camera_id")
+  zoneId    String   @map("zone_id")
+  label     String?
+  polygon   Json     // array of [x, y] normalised coordinate pairs
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  camera    Camera   @relation(fields: [cameraId], references: [id], onDelete: Cascade)
+
+  @@unique([cameraId, zoneId])
+  @@map("camera_zones")
+}
+
+// ── Alerts (TASK-008) ─────────────────────────────────────────────────────────
+
+enum AlertType {
+  INTRUSION
+  MOTION
+  PERSON
+  VEHICLE
+  SEISMIC
+  ACOUSTIC
+  SYSTEM
+}
+
+enum AlertSeverity {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+}
+
+model Alert {
+  id             String        @id @default(cuid())
+  type           AlertType     @default(INTRUSION)
+  severity       AlertSeverity @default(MEDIUM)
+  cameraId       String?       @map("camera_id")
+  bopZoneId      String?       @map("bop_zone_id")
+  aoiId          String?       @map("aoi_id")
+  message        String
+  metadata       Json?
+  acknowledged   Boolean       @default(false)
+  acknowledgedBy String?       @map("acknowledged_by")
+  acknowledgedAt DateTime?     @map("acknowledged_at")
+  resolvedAt     DateTime?     @map("resolved_at")
+  createdAt      DateTime      @default(now()) @map("created_at")
+
+  @@index([cameraId])
+  @@index([bopZoneId])
+  @@index([acknowledged])
+  @@index([createdAt])
+  @@map("alerts")
+}
+
+// ── Recordings (TASK-012) ─────────────────────────────────────────────────────
+
+enum RecordingStatus {
+  SCHEDULED
+  RECORDING
+  PROCESSING
+  STORED
+  FAILED
+  EXPIRED
+}
+
+enum StorageTier {
+  HOT
+  WARM
+  COLD
+}
+
+model RecordingSchedule {
+  id        String   @id @default(cuid())
+  cameraId  String   @map("camera_id")
+  camera    Camera   @relation("CameraRecordingSchedules", fields: [cameraId], references: [id], onDelete: Cascade)
+  cronExpr  String   @map("cron_expr")
+  durationS Int      @map("duration_s")
+  enabled   Boolean  @default(true)
+  createdBy String   @map("created_by")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([cameraId])
+  @@map("recording_schedules")
+}
+
+model Recording {
+  id            String          @id @default(cuid())
+  cameraId      String          @map("camera_id")
+  camera        Camera          @relation("CameraRecordings", fields: [cameraId], references: [id], onDelete: Cascade)
+  startedAt     DateTime        @map("started_at")
+  endedAt       DateTime?       @map("ended_at")
+  durationS     Int?            @map("duration_s")
+  storagePath   String?         @map("storage_path")
+  storageTier   StorageTier     @default(HOT)
+  status        RecordingStatus @default(SCHEDULED)
+  fileSizeBytes BigInt?         @map("file_size_bytes")
+  createdAt     DateTime        @default(now()) @map("created_at")
+  updatedAt     DateTime        @updatedAt @map("updated_at")
+
+  @@index([cameraId])
+  @@index([status])
+  @@index([startedAt])
+  @@map("recordings")
+}
+
+// ── Sensor Events (TASK-035/036/037) ─────────────────────────────────────────
+
+enum SensorEventType {
+  SEISMIC_TUNNEL
+  SEISMIC_FOOTSTEP
+  SEISMIC_VEHICLE
+  SEISMIC_ANIMAL
+  SEISMIC_NOISE
+  ACOUSTIC_VOICE
+  ACOUSTIC_GUNSHOT
+  ACOUSTIC_VEHICLE
+  ACOUSTIC_DRONE
+  ACOUSTIC_ANIMAL
+  ACOUSTIC_NOISE
+  THERMAL_HUMAN
+  THERMAL_VEHICLE
+  LIDAR_MOTION
+  PAN_PERSON
+  PAN_VEHICLE
+}
+
+model SensorEvent {
+  id         String          @id @default(cuid())
+  sensorId   String          @map("sensor_id")
+  type       SensorEventType
+  aoiIds     String[]        @map("aoi_ids")
+  confidence Float
+  payload    Json            // type-specific data (direction, distance, bbox, etc.)
+  occurredAt DateTime        @map("occurred_at")
+  createdAt  DateTime        @default(now()) @map("created_at")
+
+  @@index([sensorId])
+  @@index([type])
+  @@index([occurredAt])
+  @@map("sensor_events")
+}
+
+// ── Fusion Outcomes (TASK-039) ────────────────────────────────────────────────
+
+model FusionOutcome {
+  id                 String   @id @default(cuid())
+  aoiId              String   @map("aoi_id")
+  outcomeClass       String   @map("outcome_class")
+  confidence         Float
+  supportingEventIds String[] @map("supporting_event_ids")
+  renderHint         Json     @map("render_hint")
+  firstSeen          DateTime @map("first_seen")
+  lastSeen           DateTime @map("last_seen")
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  @@index([aoiId])
+  @@index([createdAt])
+  @@map("fusion_outcomes")
+}
+
+model FusionWeight {
+  id          String   @id @default(cuid())
+  className   String   @unique @map("class_name")
+  prior       Float    @default(0.125)
+  likelihoods Json
+  updatedBy   String   @map("updated_by")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("fusion_weights")
+}
+
+// ── AOI — Areas of Interest (TASK-031) ───────────────────────────────────────
+
+model Aoi {
+  id           String    @id @default(cuid())
+  name         String
+  bopZoneId    String?   @map("bop_zone_id")
+  bopZone      BopZone?  @relation(fields: [bopZoneId], references: [id])
+  geometryJson String    @map("geometry_json")  // GeoJSON polygon stored as text
+  createdById  String    @map("created_by_id")
+  createdBy    User      @relation(fields: [createdById], references: [id])
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt     @map("updated_at")
+  deletedAt    DateTime? @map("deleted_at")  // soft-delete
+
+  @@index([bopZoneId])
+  @@index([createdById])
+  @@map("aois")
+}
