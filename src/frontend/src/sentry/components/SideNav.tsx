@@ -1,5 +1,5 @@
 import { Icon, type IconName } from './Icon';
-import type { PageKey } from '../types';
+import type { PageKey, RoleProfile } from '../types';
 
 interface NavItem {
   id: PageKey;
@@ -45,42 +45,56 @@ export const NAV_GROUPS: NavGroup[] = [
 interface SideNavProps {
   current: PageKey;
   onNav: (page: PageKey) => void;
+  visible?: PageKey[];
+  profile?: RoleProfile;
 }
 
-export const SideNav = ({ current, onNav }: SideNavProps) => (
-  <aside className="nav">
-    <div className="brand">
-      <div className="brand-mark">S</div>
-      <div className="brand-name">
-        SENTRY <span>/ BCS</span>
-      </div>
-    </div>
-    <div className="sections">
-      {NAV_GROUPS.map((g) => (
-        <div key={g.group}>
-          <div className="section-label">{g.group}</div>
-          {g.items.map((it) => (
-            <button
-              key={it.id}
-              className={`navitem ${current === it.id ? 'active' : ''}`}
-              onClick={() => onNav(it.id)}
-            >
-              <Icon name={it.icon} />
-              <span>{it.label}</span>
-              {it.badge !== undefined && <span className="badge">{it.badge}</span>}
-            </button>
-          ))}
+export const SideNav = ({ current, onNav, visible, profile }: SideNavProps) => {
+  const filter = visible ? new Set<PageKey>(visible) : null;
+  const groups = NAV_GROUPS
+    .map((g) => ({
+      group: g.group,
+      items: filter ? g.items.filter((it) => filter.has(it.id)) : g.items,
+    }))
+    .filter((g) => g.items.length > 0);
+
+  return (
+    <aside className="nav">
+      <div className="brand">
+        <div className="brand-mark">S</div>
+        <div className="brand-name">
+          SENTRY <span>/ BCS</span>
         </div>
-      ))}
-    </div>
-    <div className="footer">
-      <span className="status-dot" />
-      <div>
-        <div className="bold" style={{ color: 'var(--ink)' }}>
-          All systems operational
-        </div>
-        <div className="tiny">142 cameras · 38 sensors · 4 sectors</div>
       </div>
-    </div>
-  </aside>
-);
+      <div className="sections">
+        {groups.map((g) => (
+          <div key={g.group}>
+            <div className="section-label">{g.group}</div>
+            {g.items.map((it) => (
+              <button
+                key={it.id}
+                className={`navitem ${current === it.id ? 'active' : ''}`}
+                onClick={() => onNav(it.id)}
+              >
+                <Icon name={it.icon} />
+                <span>{it.label}</span>
+                {it.badge !== undefined && <span className="badge">{it.badge}</span>}
+              </button>
+            ))}
+          </div>
+        ))}
+      </div>
+      <div className="footer">
+        <span className="status-dot" />
+        <div>
+          <div className="bold" style={{ color: 'var(--ink)' }}>
+            {profile ? profile.role : 'All systems operational'}
+          </div>
+          <div className="tiny">
+            {profile ? profile.area : '142 cameras · 38 sensors · 4 sectors'}
+          </div>
+        </div>
+      </div>
+    </aside>
+  );
+};

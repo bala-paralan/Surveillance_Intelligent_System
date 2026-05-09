@@ -13,7 +13,8 @@ import { ReportsPage } from './pages/ReportsPage';
 import { DevicesPage } from './pages/DevicesPage';
 import { UsersPage } from './pages/UsersPage';
 import { SettingsPage } from './pages/SettingsPage';
-import type { AccentName, DashboardVariant, PageKey, ThemeMode } from './types';
+import { ROLE_NAV, ROLE_PROFILES } from './roles';
+import type { AccentName, PageKey, Role, ThemeMode } from './types';
 import './sentry.css';
 
 interface AccentTokens {
@@ -34,31 +35,33 @@ const ACCENTS: Record<AccentName, AccentTokens> = {
   slate:   { a: '#334155', soft: '#f1f5f9', ink: '#0f172a', ring: 'rgba(51,65,85,0.18)',   dA: '#cbd5e1', dSoft: '#1e293b', dInk: '#f1f5f9', dRing: 'rgba(203,213,225,0.25)' },
 };
 
-const CRUMBS: Record<PageKey, string[]> = {
-  dashboard: ['Operations', 'Dashboard'],
-  live:      ['Operations', 'Live Feeds'],
-  map:       ['Operations', 'Sector Map'],
-  alerts:    ['Operations', 'Alerts'],
-  incidents: ['Operations', 'Incidents'],
-  incident:  ['Operations', 'Incidents', 'INC-2026-0418'],
-  search:    ['Investigate', 'Search'],
-  timeline:  ['Investigate', 'Timeline'],
-  reports:   ['Investigate', 'Reports'],
-  devices:   ['Manage', 'Devices'],
-  users:     ['Manage', 'Users'],
-  settings:  ['Manage', 'Settings'],
+const buildCrumbs = (page: PageKey, profile: { role: string }): string[] => {
+  switch (page) {
+    case 'dashboard': return ['Home', `${profile.role} dashboard`];
+    case 'live':      return ['Operations', 'Live Feeds'];
+    case 'map':       return ['Operations', 'Sector Map'];
+    case 'alerts':    return ['Operations', 'Alerts'];
+    case 'incidents': return ['Operations', 'Incidents'];
+    case 'incident':  return ['Operations', 'Incidents', 'INC-2026-0418'];
+    case 'search':    return ['Investigate', 'Search'];
+    case 'timeline':  return ['Investigate', 'Timeline'];
+    case 'reports':   return ['Investigate', 'Reports'];
+    case 'devices':   return ['Manage', 'Devices'];
+    case 'users':     return ['Manage', 'Users'];
+    case 'settings':  return ['Manage', 'Settings'];
+  }
 };
 
 interface TweaksState {
   theme: ThemeMode;
   accent: AccentName;
-  dashboardVariant: DashboardVariant;
+  role: Role;
 }
 
 const DEFAULTS: TweaksState = {
   theme: 'light',
   accent: 'indigo',
-  dashboardVariant: 'ops',
+  role: 'manager',
 };
 
 export const SentryShell = () => {
@@ -79,19 +82,25 @@ export const SentryShell = () => {
   if (page === 'login') {
     return (
       <div className="sentry-app" data-theme={tweaks.theme} style={accentVars}>
-        <LoginPage onLogin={() => setPage('dashboard')} />
+        <LoginPage
+          onLogin={(role) => {
+            setTweaks((prev) => ({ ...prev, role }));
+            setPage('dashboard');
+          }}
+        />
       </div>
     );
   }
 
+  const profile = ROLE_PROFILES[tweaks.role];
+  const visible = ROLE_NAV[tweaks.role];
   const navKey: PageKey = page === 'incident' ? 'incidents' : page;
   const toggleTheme = () =>
     setTweaks((prev) => ({ ...prev, theme: prev.theme === 'dark' ? 'light' : 'dark' }));
 
   const renderPage = () => {
     switch (page) {
-      case 'dashboard':
-        return <DashboardPage variant={tweaks.dashboardVariant} onNav={setPage} />;
+      case 'dashboard': return <DashboardPage role={tweaks.role} onNav={setPage} />;
       case 'live':      return <LivePage />;
       case 'map':       return <MapPage />;
       case 'alerts':    return <AlertsPage onNav={setPage} />;
@@ -109,11 +118,12 @@ export const SentryShell = () => {
   return (
     <div className="sentry-app" data-theme={tweaks.theme} style={accentVars}>
       <div className="app">
-        <SideNav current={navKey} onNav={setPage} />
+        <SideNav current={navKey} onNav={setPage} visible={visible} profile={profile} />
         <TopBar
-          crumbs={CRUMBS[page]}
+          crumbs={buildCrumbs(page, profile)}
           theme={tweaks.theme}
           onTheme={toggleTheme}
+          profile={profile}
         />
         <main className="main">{renderPage()}</main>
       </div>

@@ -13,5 +13,19 @@ export type PageKey =
   | 'settings';
 
 export type ThemeMode = 'light' | 'dark';
-export type DashboardVariant = 'ops' | 'exec';
 export type AccentName = 'indigo' | 'emerald' | 'amber' | 'slate';
+
+export type Role =
+  | 'manager'
+  | 'sector_lead'
+  | 'operator'
+  | 'investigator'
+  | 'field'
+  | 'analyst';
+
+export interface RoleProfile {
+  name: string;
+  initials: string;
+  role: string;
+  area: string;
+}

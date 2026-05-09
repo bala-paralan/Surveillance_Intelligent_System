@@ -1,14 +1,15 @@
 import { Fragment } from 'react';
 import { Icon } from './Icon';
-import type { ThemeMode } from '../types';
+import type { RoleProfile, ThemeMode } from '../types';
 
 interface TopBarProps {
   crumbs: string[];
   theme: ThemeMode;
   onTheme: () => void;
+  profile?: RoleProfile;
 }
 
-export const TopBar = ({ crumbs, theme, onTheme }: TopBarProps) => (
+export const TopBar = ({ crumbs, theme, onTheme, profile }: TopBarProps) => (
   <header className="topbar">
     <div className="crumbs">
       {crumbs.map((c, i) => (
@@ -32,10 +33,12 @@ export const TopBar = ({ crumbs, theme, onTheme }: TopBarProps) => (
       <span className="dot" />
     </button>
     <div className="userchip">
-      <div className="avatar">MR</div>
+      <div className="avatar">{profile ? profile.initials : 'MR'}</div>
       <div>
-        <div className="name">M. Rivera</div>
-        <div className="role">Sector Lead · NW</div>
+        <div className="name">{profile ? profile.name : 'M. Rivera'}</div>
+        <div className="role">
+          {profile ? `${profile.role} · ${profile.area}` : 'Sector Lead · NW'}
+        </div>
       </div>
     </div>
   </header>
