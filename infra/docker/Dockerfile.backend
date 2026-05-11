@@ -1,28 +1,51 @@
-# ── Stage 1: deps ─────────────────────────────────────────────────────────────
-FROM node:22-alpine AS base
+# ── Stage 1: build (dev deps + Prisma client + tsc) ───────────────────────────
+FROM node:22-alpine AS builder
 
 WORKDIR /app
 
-# Install production deps only (package-lock.json is required for ci)
-COPY src/backend/package*.json ./
-RUN npm ci --only=production
+# openssl + libc6-compat are required by Prisma engine binaries on Alpine
+RUN apk add --no-cache openssl libc6-compat
 
-# ── Stage 2: production image ─────────────────────────────────────────────────
+# Install all deps (incl. dev) so we have tsc and the Prisma CLI
+COPY src/backend/package*.json ./
+RUN npm ci
+
+# Copy source
+COPY src/backend/tsconfig.json ./tsconfig.json
+COPY src/backend/prisma ./prisma
+COPY src/backend/src ./src
+
+# Generate Prisma client and compile TypeScript
+RUN npx prisma generate
+RUN npx tsc
+
+# Drop dev deps so the runtime image stays small
+RUN npm prune --omit=dev
+
+
+# ── Stage 2: runtime ──────────────────────────────────────────────────────────
 FROM node:22-alpine AS runner
 
 WORKDIR /app
 
 ENV NODE_ENV=production
+ENV HLS_DIR=/var/lib/sis/streams
 
-# Copy production node_modules from base stage
-COPY --from=base /app/node_modules ./node_modules
+RUN apk add --no-cache openssl libc6-compat wget \
+    && mkdir -p /var/lib/sis/streams \
+    && addgroup -S sis \
+    && adduser -S sis -G sis \
+    && chown -R sis:sis /var/lib/sis
 
-# Copy compiled TypeScript output (built by `npm run build` before docker build)
-COPY src/backend/dist ./dist
+COPY --from=builder --chown=sis:sis /app/node_modules ./node_modules
+COPY --from=builder --chown=sis:sis /app/dist ./dist
+COPY --from=builder --chown=sis:sis /app/prisma ./prisma
+COPY --from=builder --chown=sis:sis /app/package.json ./package.json
 
-# Copy prisma schema so the Prisma client can find it at runtime
-COPY src/backend/prisma ./prisma
+USER sis
 
 EXPOSE 3001
 
-CMD ["node", "dist/index.js"]
+# Sync the DB schema at startup, then launch the server.
+# We use `prisma db push` (no migrations dir yet); set SKIP_MIGRATE=1 to bypass.
+CMD ["sh", "-c", "if [ -z \"$SKIP_MIGRATE\" ]; then npx prisma db push --skip-generate --accept-data-loss || echo 'prisma db push failed — continuing'; fi; node dist/index.js"]
