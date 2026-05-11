@@ -12,13 +12,12 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../db.js';
 import { verifyJwt, requireRole } from '../middleware/auth.js';
-import { scheduleRecording, recordingQueue } from '../jobs/recording-job.js';
-import { NotFoundError, ForbiddenError } from '../errors.js';
+import { NotFoundError } from '../errors.js';
 import type { RecordingStatus, StorageTier } from '@prisma/client';
 
 // ── Schemas ───────────────────────────────────────────────────────────────────
 
-const IdParam = z.object({ id: z.string().min(1) });
+interface IdParams { id: string }
 
 const ListRecordingsQuery = z.object({
   cameraId:  z.string().optional(),
@@ -151,14 +150,11 @@ export const recordingRoutes = async (app: FastifyInstance): Promise<void> => {
 
   // ── GET /recordings/:id ───────────────────────────────────────────────────
 
-  app.get('/recordings/:id', {
+  app.get<{ Params: IdParams }>('/recordings/:id', {
     preHandler: [verifyJwt],
     handler: async (req, reply) => {
-      const p = IdParam.safeParse(req.params);
-      if (!p.success) return reply.code(400).send({ error: 'Invalid id' });
-
       const recording = await prisma.recording.findUnique({
-        where: { id: p.data.id },
+        where: { id: req.params.id },
         select: {
           id: true, cameraId: true, startedAt: true, endedAt: true,
           durationS: true, storageTier: true, status: true,
@@ -173,14 +169,11 @@ export const recordingRoutes = async (app: FastifyInstance): Promise<void> => {
 
   // ── DELETE /recordings/:id ────────────────────────────────────────────────
 
-  app.delete('/recordings/:id', {
+  app.delete<{ Params: IdParams }>('/recordings/:id', {
     preHandler: [verifyJwt, requireRole('ADMIN')],
     handler: async (req, reply) => {
-      const p = IdParam.safeParse(req.params);
-      if (!p.success) return reply.code(400).send({ error: 'Invalid id' });
-
       const recording = await prisma.recording.findUnique({
-        where: { id: p.data.id },
+        where: { id: req.params.id },
         select: { id: true, storagePath: true },
       });
       if (!recording) throw new NotFoundError('Recording');
@@ -194,24 +187,21 @@ export const recordingRoutes = async (app: FastifyInstance): Promise<void> => {
         );
       }
 
-      await prisma.recording.delete({ where: { id: p.data.id } });
+      await prisma.recording.delete({ where: { id: req.params.id } });
       return reply.code(204).send();
     },
   });
 
   // ── POST /recordings/:id/export ───────────────────────────────────────────
 
-  app.post('/recordings/:id/export', {
+  app.post<{ Params: IdParams }>('/recordings/:id/export', {
     preHandler: [verifyJwt, requireRole('ADMIN', 'OPERATOR')],
     handler: async (req, reply) => {
-      const p = IdParam.safeParse(req.params);
-      if (!p.success) return reply.code(400).send({ error: 'Invalid id' });
-
       const body = ExportBody.safeParse(req.body ?? {});
       if (!body.success) return reply.code(400).send({ error: body.error.flatten() });
 
       const recording = await prisma.recording.findUnique({
-        where: { id: p.data.id },
+        where: { id: req.params.id },
         select: { id: true, status: true, storagePath: true },
       });
       if (!recording) throw new NotFoundError('Recording');

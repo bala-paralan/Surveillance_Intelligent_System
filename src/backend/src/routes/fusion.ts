@@ -9,14 +9,15 @@
  */
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import type { Prisma } from '@prisma/client';
 import { prisma } from '../db.js';
 import { verifyJwt, requireRole } from '../middleware/auth.js';
-import { NotFoundError } from '../errors.js';
 import { logger } from '../logger.js';
+import { config } from '../config.js';
 
 // ── Zod schemas ──────────────────────────────────────────────────────────────
 
-const AoiIdParam = z.object({ id: z.string().min(1) });
+interface IdParams { id: string }
 
 const OutcomeHistoryQuery = z.object({
   from:   z.string().datetime().optional(),
@@ -107,7 +108,7 @@ const toWeightPublic = (row: {
 const tryPublishAlert = async (payload: Record<string, unknown>): Promise<void> => {
   try {
     const { createClient } = await import('redis');
-    const redis = createClient({ url: process.env['REDIS_URL'] ?? 'redis://localhost:6379' });
+    const redis = createClient({ url: config.REDIS_URL });
     await redis.connect();
     await redis.publish('alert:new', JSON.stringify(payload));
     await redis.disconnect();
@@ -121,20 +122,15 @@ const tryPublishAlert = async (payload: Record<string, unknown>): Promise<void> 
 export const fusionRoutes = async (app: FastifyInstance): Promise<void> => {
 
   // ── GET /aoi/:id/outcomes ─────────────────────────────────────────────────
-  app.get('/aoi/:id/outcomes', {
+  app.get<{ Params: IdParams }>('/aoi/:id/outcomes', {
     preHandler: [verifyJwt, requireRole('ADMIN', 'OPERATOR', 'VIEWER', 'ENGINEER')],
     handler: async (req, reply) => {
-      const param = AoiIdParam.safeParse(req.params);
-      if (!param.success) {
-        return reply.code(400).send({ error: 'Invalid AOI id' });
-      }
-
       const query = OutcomeHistoryQuery.safeParse(req.query);
       if (!query.success) {
         return reply.code(400).send({ error: 'Invalid query', details: query.error.flatten() });
       }
 
-      const { id: aoiId } = param.data;
+      const { id: aoiId } = req.params;
       const { from, to, limit, offset } = query.data;
 
       const where = {
@@ -189,10 +185,6 @@ export const fusionRoutes = async (app: FastifyInstance): Promise<void> => {
   app.put('/fusion/weights', {
     preHandler: [verifyJwt, requireRole('ADMIN')],
     handler: async (req, reply) => {
-      if (!req.user) {
-        return reply.code(401).send({ error: 'Unauthorized' });
-      }
-
       const body = UpsertWeightBody.safeParse(req.body);
       if (!body.success) {
         return reply.code(400).send({ error: 'Validation error', details: body.error.flatten() });
@@ -207,16 +199,16 @@ export const fusionRoutes = async (app: FastifyInstance): Promise<void> => {
             className,
             prior,
             likelihoods,
-            updatedBy: req.user.sub,
+            updatedBy: req.user!.sub,
           },
           update: {
             prior,
             likelihoods,
-            updatedBy: req.user.sub,
+            updatedBy: req.user!.sub,
           },
         });
 
-        logger.info({ className, by: req.user.sub }, 'PUT /fusion/weights upserted');
+        logger.info({ className, by: req.user!.sub }, 'PUT /fusion/weights upserted');
         return reply.send({ weight: toWeightPublic(row) });
       } catch (err: unknown) {
         logger.error({ err, className }, 'PUT /fusion/weights failed');
@@ -251,7 +243,7 @@ export const fusionRoutes = async (app: FastifyInstance): Promise<void> => {
             outcomeClass,
             confidence,
             supportingEventIds,
-            renderHint,
+            renderHint: renderHint as Prisma.InputJsonValue,
             firstSeen:  new Date(firstSeen),
             lastSeen:   new Date(lastSeen),
           },

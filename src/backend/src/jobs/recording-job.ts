@@ -19,9 +19,11 @@ import { config } from '../config.js';
 
 // ── Redis connection opts ─────────────────────────────────────────────────────
 
+const parsedRedisUrl = new URL(config.REDIS_URL);
 const redisConnection = {
-  host: new URL(config.REDIS_URL).hostname,
-  port: Number(new URL(config.REDIS_URL).port) || 6379,
+  host: parsedRedisUrl.hostname,
+  // URL spec: .port is '' if not specified, else a numeric string.
+  port: Number(parsedRedisUrl.port || /* v8 ignore next */ '6379'),
 };
 
 // ── Queue ─────────────────────────────────────────────────────────────────────

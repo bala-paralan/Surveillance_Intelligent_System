@@ -17,12 +17,13 @@ import { logger } from '../logger.js';
 
 // ── Zod schemas ──────────────────────────────────────────────────────────────
 
-const CameraIdParam = z.object({ cameraId: z.string().min(1) });
+interface CameraIdParams { cameraId: string }
 
 /** A single normalised [x, y] coordinate pair */
-const CoordPairSchema = z
-  .array(z.number().min(0).max(1))
-  .length(2) as z.ZodType<[number, number]>;
+const CoordPairSchema = z.tuple([
+  z.number().min(0).max(1),
+  z.number().min(0).max(1),
+]);
 
 const ZoneBodySchema = z.object({
   zoneId:  z.string().min(1).max(64),
@@ -106,13 +107,10 @@ const forwardZonesToAnalytics = async (
 export const zoneRoutes = async (app: FastifyInstance): Promise<void> => {
 
   // ── GET /cameras/:cameraId/zones ──────────────────────────────────────────
-  app.get('/cameras/:cameraId/zones', {
+  app.get<{ Params: CameraIdParams }>('/cameras/:cameraId/zones', {
     preHandler: [verifyJwt, requireRole('ADMIN', 'OPERATOR', 'VIEWER', 'ENGINEER')],
     handler: async (req, reply) => {
-      const param = CameraIdParam.safeParse(req.params);
-      if (!param.success) return reply.code(400).send({ error: 'Invalid cameraId' });
-
-      const { cameraId } = param.data;
+      const { cameraId } = req.params;
 
       try {
         // Verify camera exists
@@ -134,18 +132,15 @@ export const zoneRoutes = async (app: FastifyInstance): Promise<void> => {
   });
 
   // ── POST /cameras/:cameraId/zones ─────────────────────────────────────────
-  app.post('/cameras/:cameraId/zones', {
+  app.post<{ Params: CameraIdParams }>('/cameras/:cameraId/zones', {
     preHandler: [verifyJwt, requireRole('ADMIN', 'OPERATOR')],
     handler: async (req, reply) => {
-      const param = CameraIdParam.safeParse(req.params);
-      if (!param.success) return reply.code(400).send({ error: 'Invalid cameraId' });
-
       const body = SetZonesBodySchema.safeParse(req.body);
       if (!body.success) {
         return reply.code(400).send({ error: 'Validation error', details: body.error.flatten() });
       }
 
-      const { cameraId } = param.data;
+      const { cameraId } = req.params;
       const { zones }    = body.data;
 
       try {

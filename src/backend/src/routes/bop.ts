@@ -8,14 +8,13 @@
  * GET  /bop/sync/logs    — list last 20 sync logs (ADMIN | ENGINEER)
  */
 import type { FastifyInstance } from 'fastify';
-import { z } from 'zod';
 import { prisma } from '../db.js';
 import { verifyJwt, requireRole, requireScope } from '../middleware/auth.js';
 import { runGisSync, GeoPackageMockSource } from '../services/gis-sync-service.js';
 import { NotFoundError } from '../errors.js';
 import { logger } from '../logger.js';
 
-const IdParamSchema = z.object({ id: z.string().min(1) });
+interface IdParams { id: string }
 
 export const bopRoutes = async (app: FastifyInstance): Promise<void> => {
 
@@ -54,13 +53,10 @@ export const bopRoutes = async (app: FastifyInstance): Promise<void> => {
   });
 
   // ── GET /bop/:id ────────────────────────────────────────────────────────────
-  app.get('/bop/:id', {
+  app.get<{ Params: IdParams }>('/bop/:id', {
     preHandler: [verifyJwt, requireRole('ADMIN', 'OPERATOR', 'VIEWER', 'ENGINEER')],
     handler: async (req, reply) => {
-      const parsed = IdParamSchema.safeParse(req.params);
-      if (!parsed.success) return reply.code(400).send({ error: 'Invalid id' });
-
-      const { id } = parsed.data;
+      const { id } = req.params;
 
       // Scope check — dynamically call requireScope with the resolved bopId
       await new Promise<void>((resolve, reject) => {
@@ -95,13 +91,10 @@ export const bopRoutes = async (app: FastifyInstance): Promise<void> => {
   });
 
   // ── GET /bop/:id/zones ──────────────────────────────────────────────────────
-  app.get('/bop/:id/zones', {
+  app.get<{ Params: IdParams }>('/bop/:id/zones', {
     preHandler: [verifyJwt, requireRole('ADMIN', 'OPERATOR', 'VIEWER', 'ENGINEER')],
     handler: async (req, reply) => {
-      const parsed = IdParamSchema.safeParse(req.params);
-      if (!parsed.success) return reply.code(400).send({ error: 'Invalid id' });
-
-      const { id } = parsed.data;
+      const { id } = req.params;
 
       try {
         const bop = await prisma.bop.findUnique({ where: { id }, select: { id: true } });
@@ -130,17 +123,12 @@ export const bopRoutes = async (app: FastifyInstance): Promise<void> => {
   app.post('/bop/sync', {
     preHandler: [verifyJwt, requireRole('ADMIN')],
     handler: async (_req, reply) => {
-      try {
-        const source = new GeoPackageMockSource();
-        // Fire-and-forget; caller gets 202 immediately
-        runGisSync(source).catch((err: unknown) => {
-          logger.error({ err }, 'Background GIS sync failed');
-        });
-        return reply.code(202).send({ message: 'GIS sync started' });
-      } catch (err: unknown) {
-        logger.error({ err }, 'POST /bop/sync failed');
-        throw err;
-      }
+      const source = new GeoPackageMockSource();
+      // Fire-and-forget; caller gets 202 immediately
+      runGisSync(source).catch((err: unknown) => {
+        logger.error({ err }, 'Background GIS sync failed');
+      });
+      return reply.code(202).send({ message: 'GIS sync started' });
     },
   });
 };

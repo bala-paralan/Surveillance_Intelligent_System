@@ -49,7 +49,7 @@ const metricsPluginImpl = async (app: FastifyInstance): Promise<void> => {
   app.addHook(
     'onResponse',
     async (request: FastifyRequest, reply: FastifyReply) => {
-      const route = request.routerPath ?? request.url ?? 'unknown';
+      const route = request.routerPath ?? request.url ?? /* v8 ignore next */ 'unknown';
       const method = request.method;
       const statusCode = String(reply.statusCode);
       const durationMs = reply.elapsedTime;
@@ -62,9 +62,6 @@ const metricsPluginImpl = async (app: FastifyInstance): Promise<void> => {
   // GET /metrics — no auth, intended for internal Prometheus scraping
   app.get(
     '/metrics',
-    {
-      config: { skipAuth: true },
-    },
     async (_req: FastifyRequest, reply: FastifyReply): Promise<void> => {
       const metrics = await register.metrics();
       await reply
