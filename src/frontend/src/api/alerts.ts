@@ -95,5 +95,14 @@ export const acknowledgeAlert = (id: string): Promise<{ alert: AlertPublic }> =>
 export const resolveAlert = (id: string): Promise<{ alert: AlertPublic }> =>
   apiFetch<{ alert: AlertPublic }>(`/alerts/${id}/resolve`, { method: 'PATCH' });
 
+export const escalateAlert = (id: string): Promise<{ alert: AlertPublic }> =>
+  apiFetch<{ alert: AlertPublic }>(`/alerts/${id}/escalate`, { method: 'PATCH' });
+
+// Marking an alert as a false positive — the analytics service consumes this
+// to refine fusion thresholds (TASK-043 §9). Out of UI scope, but the hook
+// must exist.
+export const markAlertFalse = (id: string): Promise<{ alert: AlertPublic }> =>
+  apiFetch<{ alert: AlertPublic }>(`/alerts/${id}/false-positive`, { method: 'PATCH' });
+
 export const getAlertStats = (): Promise<AlertStats> =>
   apiFetch<AlertStats>('/alerts/stats');

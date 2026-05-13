@@ -3,8 +3,11 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { listAlerts, acknowledgeAlert } from '@/api/alerts';
 import type { AlertPublic, AlertSeverity } from '@/api/alerts';
 import { useAuth } from '@/hooks/useAuth';
+import { useAoiStore } from '@/store/aoiStore';
 import { narrativeFromAlert } from '@/components/alerts/NarrativeTemplate';
 import { AlertDetailModal } from '@/components/alerts/AlertDetailModal';
+import { alertToThreat } from '@/api/threats';
+import { SensorTypeIcon } from '@/components/threats/IllustrativeIcon';
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -28,7 +31,7 @@ const SEVERITY_BADGE: Record<AlertSeverity, string> = {
   LOW:      'bg-blue-500 text-white',
 };
 
-// ── Time-ago ──────────────────────────────────────────────────────────────────
+// ── Time helpers ──────────────────────────────────────────────────────────────
 
 const timeAgo = (iso: string): string => {
   const diffMs = Date.now() - new Date(iso).getTime();
@@ -41,18 +44,24 @@ const timeAgo = (iso: string): string => {
   return `${Math.floor(hours / 24)}d ago`;
 };
 
+const timeAbs = (iso: string): string => {
+  try { return new Date(iso).toLocaleString(); } catch { return iso; }
+};
+
 // ── AlertTickerCard ───────────────────────────────────────────────────────────
 
 interface CardProps {
   alert: AlertPublic;
+  aoiLabel: string;
   canAct: boolean;
   onAck: (id: string) => void;
   acking: boolean;
   onClick: (alert: AlertPublic) => void;
 }
 
-const AlertTickerCard = ({ alert, canAct, onAck, acking, onClick }: CardProps) => {
+const AlertTickerCard = ({ alert, aoiLabel, canAct, onAck, acking, onClick }: CardProps) => {
   const isCritical = alert.severity === 'CRITICAL';
+  const sensorType = alertToThreat(alert).contributions[0]?.sensor_type;
 
   return (
     <div
@@ -62,10 +71,11 @@ const AlertTickerCard = ({ alert, canAct, onAck, acking, onClick }: CardProps) =
         px-3 py-2 cursor-pointer select-none
         ${isCritical ? 'alert-critical-pulse' : ''}
         hover:bg-gray-800/90 transition-colors
+        focus:outline-none focus:ring-2 focus:ring-gray-400
       `}
       role="button"
       tabIndex={0}
-      aria-label={`Alert: ${alert.severity} ${alert.type}`}
+      aria-label={`Alert: ${alert.severity} ${alert.type} in ${aoiLabel}`}
       onClick={() => onClick(alert)}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onClick(alert); }}
     >
@@ -73,26 +83,45 @@ const AlertTickerCard = ({ alert, canAct, onAck, acking, onClick }: CardProps) =
         <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded ${SEVERITY_BADGE[alert.severity]}`}>
           {alert.severity}
         </span>
-        {isCritical && (
-          <span className="text-red-400 text-sm" aria-label="Bell">&#128276;</span>
+        {sensorType !== undefined && (
+          <span className="text-gray-300" aria-hidden="true">
+            <SensorTypeIcon sensorType={sensorType} size={14} />
+          </span>
         )}
-        <span className="text-gray-400 text-xs ml-auto">{timeAgo(alert.createdAt)}</span>
+        {isCritical && (
+          <span className="text-red-400 text-sm" aria-hidden="true">&#128276;</span>
+        )}
+        <span
+          className="text-gray-400 text-xs ml-auto"
+          title={timeAbs(alert.createdAt)}
+        >
+          {timeAgo(alert.createdAt)}
+        </span>
       </div>
 
       <p className="text-xs text-gray-200 leading-snug line-clamp-2">
         {narrativeFromAlert(alert)}
       </p>
 
-      {canAct && !alert.acknowledged && (
-        <button
-          type="button"
-          disabled={acking}
-          onClick={(e) => { e.stopPropagation(); onAck(alert.id); }}
-          className="self-end text-[10px] px-2 py-0.5 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 disabled:opacity-50 transition-colors"
+      <div className="flex items-center gap-2 mt-0.5">
+        <span
+          className="text-[9px] text-gray-400 bg-gray-800 px-1.5 py-0.5 rounded truncate max-w-[10rem]"
+          title={aoiLabel}
         >
-          {acking ? 'Ack…' : 'Ack'}
-        </button>
-      )}
+          {aoiLabel}
+        </span>
+
+        {canAct && !alert.acknowledged && (
+          <button
+            type="button"
+            disabled={acking}
+            onClick={(e) => { e.stopPropagation(); onAck(alert.id); }}
+            className="ml-auto text-[10px] px-2 py-0.5 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 disabled:opacity-50 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-400"
+          >
+            {acking ? 'Ack…' : 'Ack'}
+          </button>
+        )}
+      </div>
     </div>
   );
 };
@@ -102,6 +131,7 @@ const AlertTickerCard = ({ alert, canAct, onAck, acking, onClick }: CardProps) =
 export const AlertTicker = ({ aoiId }: AlertTickerProps) => {
   const { hasRole } = useAuth();
   const queryClient = useQueryClient();
+  const aois = useAoiStore((s) => s.aois);
   const canAct = hasRole('OPERATOR') || hasRole('ADMIN');
   const [selectedAlert, setSelectedAlert] = useState<AlertPublic | null>(null);
 
@@ -119,6 +149,11 @@ export const AlertTicker = ({ aoiId }: AlertTickerProps) => {
     },
   });
 
+  const aoiLabelOf = (id: string | null): string => {
+    if (id === null) return 'Unknown AOI';
+    return aois.find((a) => a.id === id)?.name ?? id;
+  };
+
   const alerts = data?.alerts ?? [];
 
   if (alerts.length === 0) return null;
@@ -134,6 +169,7 @@ export const AlertTicker = ({ aoiId }: AlertTickerProps) => {
           <AlertTickerCard
             key={alert.id}
             alert={alert}
+            aoiLabel={aoiLabelOf(alert.aoiId)}
             canAct={canAct}
             onAck={(id) => doAck(id)}
             acking={acking}
@@ -145,6 +181,7 @@ export const AlertTicker = ({ aoiId }: AlertTickerProps) => {
       {selectedAlert !== null && (
         <AlertDetailModal
           alert={selectedAlert}
+          context={{ aoiLabel: aoiLabelOf(selectedAlert.aoiId) }}
           onClose={() => setSelectedAlert(null)}
         />
       )}
