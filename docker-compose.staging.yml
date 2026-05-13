@@ -12,3 +12,13 @@ services:
   frontend:
     ports: !override
       - "5173:5173"
+
+  # Host 9090 is taken by an existing Prometheus on this box; 3000 is taken
+  # by another service. Map to free ports for staging.
+  prometheus:
+    ports: !override
+      - "9190:9090"
+
+  grafana:
+    ports: !override
+      - "3300:3000"
