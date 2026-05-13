@@ -1,0 +1,14 @@
+services:
+  postgres:
+    ports: !override []
+
+  redis:
+    ports: !override []
+
+  backend:
+    ports: !override
+      - "3101:3001"
+
+  frontend:
+    ports: !override
+      - "5173:5173"
