@@ -3,14 +3,19 @@ global:
   evaluation_interval: 15s
 
 scrape_configs:
+  # Backend exposes /metrics on its main HTTP listener (no separate metrics
+  # port despite the older comment in middleware/metrics.ts).
   - job_name: backend
+    metrics_path: /metrics
     static_configs:
-      - targets: ["backend:9091"]
+      - targets: ["backend:3001"]
 
+  # Analytics: FastAPI exposes /metrics on its main 8001 port (see
+  # analytics/api/metrics.py mounted in main.py).
   - job_name: analytics
+    metrics_path: /metrics
     static_configs:
-      - targets: ["analytics:9091"]
+      - targets: ["analytics:8001"]
 
-  - job_name: postgres_exporter
-    static_configs:
-      - targets: ["postgres-exporter:9187"]
+  # postgres-exporter is not provisioned in docker-compose.yml. Re-add a
+  # job here once that service ships.
