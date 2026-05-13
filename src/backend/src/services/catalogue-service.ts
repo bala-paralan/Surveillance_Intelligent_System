@@ -56,10 +56,8 @@ const pointInPolygon = (lat: number, lon: number, rings: number[][][]): boolean 
     const n = ring.length;
     let j = n - 1;
     for (let i = 0; i < n; i++) {
-      const xi = ring[i]?.[0] ?? 0;   // lon
-      const yi = ring[i]?.[1] ?? 0;   // lat
-      const xj = ring[j]?.[0] ?? 0;
-      const yj = ring[j]?.[1] ?? 0;
+      const [xi, yi] = ring[i] as [number, number];
+      const [xj, yj] = ring[j] as [number, number];
 
       const intersects =
         yi > lat !== yj > lat &&
@@ -160,9 +158,9 @@ export const listForAoi = async (aoiId: string): Promise<CatalogueItem[]> => {
   // ── Merge, sort, and return ───────────────────────────────────────────────
   const all = [...matchedSensors, ...matchedCameras, ...matchedAssets];
 
+  const kindOrder: Record<CatalogueItem['kind'], number> = { sensor: 0, camera: 1, asset: 2 };
   all.sort((a, b) => {
-    const kindOrder: Record<string, number> = { sensor: 0, camera: 1, asset: 2 };
-    const kDiff = (kindOrder[a.kind] ?? 3) - (kindOrder[b.kind] ?? 3);
+    const kDiff = kindOrder[a.kind] - kindOrder[b.kind];
     if (kDiff !== 0) return kDiff;
     return a.type.localeCompare(b.type);
   });

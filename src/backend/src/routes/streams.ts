@@ -16,36 +16,32 @@ import { verifyJwt, requireRole } from '../middleware/auth.js';
 import { config } from '../config.js';
 import { NotFoundError } from '../errors.js';
 
-const IdParam   = z.object({ id: z.string().min(1) });
 const FileParam = z.object({ id: z.string().min(1), file: z.string().regex(/^[\w%-]+\.(m3u8|ts)$/) });
+
+interface IdParams { id: string }
 
 export const streamRoutes = async (app: FastifyInstance): Promise<void> => {
 
   // ── POST /streams/:id/start ───────────────────────────────────────────────
-  app.post('/streams/:id/start', {
+  app.post<{ Params: IdParams }>('/streams/:id/start', {
     preHandler: [verifyJwt, requireRole('ADMIN', 'OPERATOR')],
     handler: async (req, reply) => {
-      const p = IdParam.safeParse(req.params);
-      if (!p.success) return reply.code(400).send({ error: 'Invalid id' });
-
-      const { hlsPath } = await startStream(p.data.id);
+      const { hlsPath } = await startStream(req.params.id);
       void hlsPath; // internal path — do not expose
 
       return reply.code(200).send({
-        cameraId:   p.data.id,
-        hlsUrl:     `/streams/${p.data.id}/hls/stream.m3u8`,
+        cameraId:   req.params.id,
+        hlsUrl:     `/streams/${req.params.id}/hls/stream.m3u8`,
         message:    'Stream starting',
       });
     },
   });
 
   // ── DELETE /streams/:id ───────────────────────────────────────────────────
-  app.delete('/streams/:id', {
+  app.delete<{ Params: IdParams }>('/streams/:id', {
     preHandler: [verifyJwt, requireRole('ADMIN', 'OPERATOR')],
     handler: async (req, reply) => {
-      const p = IdParam.safeParse(req.params);
-      if (!p.success) return reply.code(400).send({ error: 'Invalid id' });
-      await stopStream(p.data.id);
+      await stopStream(req.params.id);
       return reply.code(204).send();
     },
   });

@@ -20,36 +20,6 @@ interface DrawCreateEvent {
   features: GeoJSON.Feature[];
 }
 
-// Inline OSM raster style — used for the "OSM" basemap option since it
-// needs no key. Credit/attribution per OSM tile usage policy.
-const OSM_RASTER_STYLE: maplibregl.StyleSpecification = {
-  version: 8,
-  sources: {
-    'osm-raster': {
-      type: 'raster',
-      tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-      tileSize: 256,
-      attribution: '© OpenStreetMap contributors',
-      maxzoom: 19,
-    },
-  },
-  layers: [
-    {
-      id: 'osm-raster-layer',
-      type: 'raster',
-      source: 'osm-raster',
-    },
-  ],
-};
-
-const styleUrlFor = (id: string): string | maplibregl.StyleSpecification => {
-  if (id === 'osm') return OSM_RASTER_STYLE;
-  const found = DEFAULT_BASEMAPS.find((b) => b.id === id);
-  return found?.styleUrl !== undefined && found.styleUrl !== ''
-    ? found.styleUrl
-    : DEFAULT_BASEMAPS[0]!.styleUrl;
-};
-
 export const AoiMap = () => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);

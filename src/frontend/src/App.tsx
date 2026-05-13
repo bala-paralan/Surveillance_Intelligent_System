@@ -5,6 +5,7 @@ import { LoginPage } from '@/components/auth/LoginPage';
 import { OperatorDashboard } from '@/pages/OperatorDashboard';
 import { AoiPage } from '@/pages/AoiPage';
 import { EngineeringPage } from '@/pages/EngineeringPage';
+import { SentryShell } from '@/sentry/SentryShell';
 
 const NotFound = () => (
   <div className="min-h-[calc(100vh-56px)] bg-gray-900 flex items-center justify-center px-4">
@@ -28,6 +29,15 @@ const CamerasPlaceholder = () => (
 export const App = () => {
   const location = useLocation();
   const isLoginPage = location.pathname === '/login';
+  const isSentryRoute = location.pathname.startsWith('/sentry');
+
+  if (isSentryRoute) {
+    return (
+      <Routes>
+        <Route path="/sentry/*" element={<SentryShell />} />
+      </Routes>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-900">

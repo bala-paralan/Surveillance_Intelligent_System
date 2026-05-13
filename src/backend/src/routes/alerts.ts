@@ -13,9 +13,10 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../db.js';
 import { verifyJwt, requireRole } from '../middleware/auth.js';
-import { NotFoundError, AppError } from '../errors.js';
+import { NotFoundError } from '../errors.js';
 import { logger } from '../logger.js';
-import type { AlertType, AlertSeverity } from '@prisma/client';
+import { config } from '../config.js';
+import type { AlertType, AlertSeverity, Prisma } from '@prisma/client';
 
 // ── Zod schemas ──────────────────────────────────────────────────────────────
 
@@ -49,7 +50,7 @@ const ListAlertsQuerySchema = z.object({
   offset: z.coerce.number().int().min(0).default(0),
 });
 
-const IdParamSchema = z.object({ id: z.string().min(1) });
+interface IdParams { id: string }
 
 // ── Public shape ─────────────────────────────────────────────────────────────
 
@@ -101,7 +102,7 @@ const toAlertPublic = (row: {
 const tryPublishAlert = async (alert: AlertPublic): Promise<void> => {
   try {
     const { createClient } = await import('redis');
-    const redis = createClient({ url: process.env['REDIS_URL'] ?? 'redis://localhost:6379' });
+    const redis = createClient({ url: config.REDIS_URL });
     await redis.connect();
     await redis.publish('alerts:new', JSON.stringify(alert));
     await redis.disconnect();
@@ -213,7 +214,7 @@ export const alertRoutes = async (app: FastifyInstance): Promise<void> => {
             bopZoneId: bopZoneId ?? null,
             aoiId:     aoiId     ?? null,
             message,
-            metadata:  metadata ?? undefined,
+            metadata:  (metadata ?? undefined) as Prisma.InputJsonValue | undefined,
           },
           select: ALERT_SELECT,
         });
@@ -233,15 +234,10 @@ export const alertRoutes = async (app: FastifyInstance): Promise<void> => {
   });
 
   // ── PATCH /alerts/:id/acknowledge ─────────────────────────────────────────
-  app.patch('/alerts/:id/acknowledge', {
+  app.patch<{ Params: IdParams }>('/alerts/:id/acknowledge', {
     preHandler: [verifyJwt, requireRole('ADMIN', 'OPERATOR')],
     handler: async (req, reply) => {
-      if (!req.user) throw new AppError(401, 'Unauthorized');
-
-      const param = IdParamSchema.safeParse(req.params);
-      if (!param.success) return reply.code(400).send({ error: 'Invalid id' });
-
-      const { id } = param.data;
+      const { id } = req.params;
 
       try {
         const existing = await prisma.alert.findUnique({ where: { id } });
@@ -251,13 +247,13 @@ export const alertRoutes = async (app: FastifyInstance): Promise<void> => {
           where: { id },
           data: {
             acknowledged:   true,
-            acknowledgedBy: req.user.sub,
+            acknowledgedBy: req.user!.sub,
             acknowledgedAt: new Date(),
           },
           select: ALERT_SELECT,
         });
 
-        logger.info({ alertId: id, by: req.user.sub }, 'PATCH /alerts/:id/acknowledge');
+        logger.info({ alertId: id, by: req.user!.sub }, 'PATCH /alerts/:id/acknowledge');
         return reply.send({ alert: toAlertPublic(row) });
       } catch (err: unknown) {
         logger.error({ err, alertId: id }, 'PATCH /alerts/:id/acknowledge failed');
@@ -267,13 +263,10 @@ export const alertRoutes = async (app: FastifyInstance): Promise<void> => {
   });
 
   // ── PATCH /alerts/:id/resolve ─────────────────────────────────────────────
-  app.patch('/alerts/:id/resolve', {
+  app.patch<{ Params: IdParams }>('/alerts/:id/resolve', {
     preHandler: [verifyJwt, requireRole('ADMIN', 'OPERATOR')],
     handler: async (req, reply) => {
-      const param = IdParamSchema.safeParse(req.params);
-      if (!param.success) return reply.code(400).send({ error: 'Invalid id' });
-
-      const { id } = param.data;
+      const { id } = req.params;
 
       try {
         const existing = await prisma.alert.findUnique({ where: { id } });

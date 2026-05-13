@@ -3,7 +3,6 @@
  * All write operations require admin or operator role.
  */
 import type { FastifyInstance } from 'fastify';
-import { z } from 'zod';
 import {
   CreateCameraSchema,
   UpdateCameraSchema,
@@ -17,7 +16,7 @@ import {
 } from '../services/camera-service.js';
 import { verifyJwt, requireRole } from '../middleware/auth.js';
 
-const IdParam = z.object({ id: z.string().min(1) });
+interface IdParams { id: string }
 
 export const cameraRoutes = async (app: FastifyInstance): Promise<void> => {
 
@@ -32,12 +31,10 @@ export const cameraRoutes = async (app: FastifyInstance): Promise<void> => {
   });
 
   // ── GET /cameras/:id ──────────────────────────────────────────────────────
-  app.get('/cameras/:id', {
+  app.get<{ Params: IdParams }>('/cameras/:id', {
     preHandler: [verifyJwt],
     handler: async (req, reply) => {
-      const p = IdParam.safeParse(req.params);
-      if (!p.success) return reply.code(400).send({ error: 'Invalid id' });
-      return reply.send(await getCameraById(p.data.id));
+      return reply.send(await getCameraById(req.params.id));
     },
   });
 
@@ -53,35 +50,29 @@ export const cameraRoutes = async (app: FastifyInstance): Promise<void> => {
   });
 
   // ── PUT /cameras/:id ──────────────────────────────────────────────────────
-  app.put('/cameras/:id', {
+  app.put<{ Params: IdParams }>('/cameras/:id', {
     preHandler: [verifyJwt, requireRole('ADMIN', 'OPERATOR')],
     handler: async (req, reply) => {
-      const p = IdParam.safeParse(req.params);
-      if (!p.success) return reply.code(400).send({ error: 'Invalid id' });
       const body = UpdateCameraSchema.safeParse(req.body);
       if (!body.success) return reply.code(400).send({ error: body.error.flatten() });
-      return reply.send(await updateCamera(p.data.id, body.data));
+      return reply.send(await updateCamera(req.params.id, body.data));
     },
   });
 
   // ── DELETE /cameras/:id ───────────────────────────────────────────────────
-  app.delete('/cameras/:id', {
+  app.delete<{ Params: IdParams }>('/cameras/:id', {
     preHandler: [verifyJwt, requireRole('ADMIN')],
     handler: async (req, reply) => {
-      const p = IdParam.safeParse(req.params);
-      if (!p.success) return reply.code(400).send({ error: 'Invalid id' });
-      await deleteCamera(p.data.id);
+      await deleteCamera(req.params.id);
       return reply.code(204).send();
     },
   });
 
   // ── POST /cameras/:id/test ────────────────────────────────────────────────
-  app.post('/cameras/:id/test', {
+  app.post<{ Params: IdParams }>('/cameras/:id/test', {
     preHandler: [verifyJwt, requireRole('ADMIN', 'OPERATOR')],
     handler: async (req, reply) => {
-      const p = IdParam.safeParse(req.params);
-      if (!p.success) return reply.code(400).send({ error: 'Invalid id' });
-      return reply.send(await testCamera(p.data.id));
+      return reply.send(await testCamera(req.params.id));
     },
   });
 };

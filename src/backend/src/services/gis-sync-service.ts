@@ -2,6 +2,7 @@
  * GIS sync service — TASK-041.
  * Upserts BOP / zone / asset data from an external GIS source into the database.
  */
+import type { Prisma } from '@prisma/client';
 import { prisma } from '../db.js';
 import { logger } from '../logger.js';
 
@@ -211,7 +212,7 @@ export const runGisSync = async (source: GisSource): Promise<void> => {
             kind:     assetInput.kind,
             lat:      assetInput.lat,
             lon:      assetInput.lon,
-            metadata: assetInput.metadata,
+            metadata: assetInput.metadata as Prisma.InputJsonValue,
           },
         });
         added++;

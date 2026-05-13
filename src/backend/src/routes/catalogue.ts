@@ -12,18 +12,19 @@
  * POST /sensor-events         — create sensor event (analytics API key auth)
  */
 import type { FastifyInstance } from 'fastify';
+import type { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { prisma } from '../db.js';
 import { verifyJwt, requireRole } from '../middleware/auth.js';
-import { NotFoundError } from '../errors.js';
+import { NotFoundError, UnauthorizedError, ForbiddenError } from '../errors.js';
 import { logger } from '../logger.js';
 import { listForAoi, toSensorPublic } from '../services/catalogue-service.js';
 import { config } from '../config.js';
 
 // ── Zod schemas ──────────────────────────────────────────────────────────────
 
-const AoiIdParamSchema   = z.object({ aoiId: z.string().min(1) });
-const SensorIdParamSchema = z.object({ id: z.string().min(1) });
+interface AoiIdParams { aoiId: string }
+interface SensorIdParams { id: string }
 
 const SensorTypeSchema   = z.enum(['SEISMIC', 'ACOUSTIC', 'THERMAL', 'LIDAR', 'PAN', 'CAMERA']);
 const SensorHealthSchema = z.enum(['HEALTHY', 'DEGRADED', 'OFFLINE', 'UNKNOWN']);
@@ -81,15 +82,10 @@ const CreateSensorEventBodySchema = z.object({
 export const catalogueRoutes = async (app: FastifyInstance): Promise<void> => {
 
   // ── GET /aoi/:aoiId/catalogue ─────────────────────────────────────────────
-  app.get('/aoi/:aoiId/catalogue', {
+  app.get<{ Params: AoiIdParams }>('/aoi/:aoiId/catalogue', {
     preHandler: [verifyJwt, requireRole('ADMIN', 'OPERATOR', 'VIEWER', 'ENGINEER')],
     handler: async (req, reply) => {
-      const paramParsed = AoiIdParamSchema.safeParse(req.params);
-      if (!paramParsed.success) {
-        return reply.code(400).send({ error: 'Invalid aoiId' });
-      }
-
-      const { aoiId } = paramParsed.data;
+      const { aoiId } = req.params;
 
       try {
         const items = await listForAoi(aoiId);
@@ -170,15 +166,10 @@ export const catalogueRoutes = async (app: FastifyInstance): Promise<void> => {
   });
 
   // ── GET /sensors/:id ──────────────────────────────────────────────────────
-  app.get('/sensors/:id', {
+  app.get<{ Params: SensorIdParams }>('/sensors/:id', {
     preHandler: [verifyJwt, requireRole('ADMIN', 'OPERATOR', 'VIEWER', 'ENGINEER')],
     handler: async (req, reply) => {
-      const paramParsed = SensorIdParamSchema.safeParse(req.params);
-      if (!paramParsed.success) {
-        return reply.code(400).send({ error: 'Invalid id' });
-      }
-
-      const { id } = paramParsed.data;
+      const { id } = req.params;
 
       try {
         const sensor = await prisma.sensor.findUnique({ where: { id } });
@@ -193,20 +184,15 @@ export const catalogueRoutes = async (app: FastifyInstance): Promise<void> => {
   });
 
   // ── PATCH /sensors/:id/health ─────────────────────────────────────────────
-  app.patch('/sensors/:id/health', {
+  app.patch<{ Params: SensorIdParams }>('/sensors/:id/health', {
     preHandler: [verifyJwt, requireRole('ADMIN', 'ENGINEER')],
     handler: async (req, reply) => {
-      const paramParsed = SensorIdParamSchema.safeParse(req.params);
-      if (!paramParsed.success) {
-        return reply.code(400).send({ error: 'Invalid id' });
-      }
-
       const bodyParsed = UpdateHealthBodySchema.safeParse(req.body);
       if (!bodyParsed.success) {
         return reply.code(400).send({ error: 'Validation error', details: bodyParsed.error.issues });
       }
 
-      const { id } = paramParsed.data;
+      const { id } = req.params;
       const { health, lastHeartbeat } = bodyParsed.data;
 
       try {
@@ -231,5 +217,107 @@ export const catalogueRoutes = async (app: FastifyInstance): Promise<void> => {
         throw err;
       }
     },
+  });
+
+  // ── GET /sensor-events ────────────────────────────────────────────────────
+  app.get('/sensor-events', {
+    preHandler: [verifyJwt, requireRole('ADMIN', 'OPERATOR', 'VIEWER', 'ENGINEER')],
+    handler: async (req, reply) => {
+      const queryParsed = ListSensorEventsQuerySchema.safeParse(req.query);
+      if (!queryParsed.success) {
+        return reply.code(400).send({ error: 'Invalid query', details: queryParsed.error.issues });
+      }
+
+      const { sensorId, type, aoiId, limit, offset, from, to } = queryParsed.data;
+
+      const where: Prisma.SensorEventWhereInput = {
+        ...(sensorId ? { sensorId } : {}),
+        ...(type ? { type } : {}),
+        ...(aoiId ? { aoiIds: { has: aoiId } } : {}),
+        ...(from || to
+          ? {
+              occurredAt: {
+                ...(from ? { gte: new Date(from) } : {}),
+                ...(to ? { lte: new Date(to) } : {}),
+              },
+            }
+          : {}),
+      };
+
+      try {
+        const [events, total] = await Promise.all([
+          prisma.sensorEvent.findMany({
+            where,
+            orderBy: { occurredAt: 'desc' },
+            skip:    offset,
+            take:    limit,
+          }),
+          prisma.sensorEvent.count({ where }),
+        ]);
+
+        return reply.send({
+          events: events.map((e) => ({
+            id:         e.id,
+            sensorId:   e.sensorId,
+            type:       e.type,
+            aoiIds:     e.aoiIds,
+            confidence: e.confidence,
+            payload:    e.payload,
+            occurredAt: e.occurredAt.toISOString(),
+            createdAt:  e.createdAt.toISOString(),
+          })),
+          total,
+        });
+      } catch (err: unknown) {
+        logger.error({ err }, 'GET /sensor-events failed');
+        throw err;
+      }
+    },
+  });
+
+  // ── POST /sensor-events ───────────────────────────────────────────────────
+  // Analytics microservice posts events here. Auth is by static API key, not JWT.
+  app.post('/sensor-events', async (req, reply) => {
+    // Endpoint is disabled when no API key is configured (503).
+    if (!config.ANALYTICS_API_KEY) {
+      return reply.code(503).send({ error: 'sensor-events ingestion disabled' });
+    }
+
+    const provided = req.headers['x-analytics-api-key'];
+    if (typeof provided !== 'string' || provided.length === 0) {
+      throw new UnauthorizedError('Missing analytics API key');
+    }
+    if (provided !== config.ANALYTICS_API_KEY) {
+      throw new ForbiddenError('Invalid analytics API key');
+    }
+
+    const bodyParsed = CreateSensorEventBodySchema.safeParse(req.body);
+    if (!bodyParsed.success) {
+      return reply.code(400).send({ error: 'Validation error', details: bodyParsed.error.issues });
+    }
+
+    const { sensorId, type, aoiIds, confidence, payload, occurredAt } = bodyParsed.data;
+
+    try {
+      const sensor = await prisma.sensor.findUnique({ where: { id: sensorId } });
+      if (!sensor) throw new NotFoundError('Sensor');
+
+      const event = await prisma.sensorEvent.create({
+        data: {
+          sensorId,
+          type,
+          aoiIds,
+          confidence,
+          payload:    payload as Prisma.InputJsonValue,
+          occurredAt: new Date(occurredAt),
+        },
+      });
+
+      logger.info({ eventId: event.id, sensorId, type }, 'POST /sensor-events ingested');
+      return reply.code(201).send({ event: { id: event.id } });
+    } catch (err: unknown) {
+      logger.error({ err }, 'POST /sensor-events failed');
+      throw err;
+    }
   });
 };

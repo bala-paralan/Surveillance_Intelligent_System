@@ -57,6 +57,9 @@ export const NavBar = () => {
                 <NavLink to="/cameras" className={navLinkClass}>
                   Cameras
                 </NavLink>
+                <NavLink to="/sentry" className={navLinkClass}>
+                  SENTRY
+                </NavLink>
                 {showEngineering && (
                   <NavLink to="/engineering" className={navLinkClass}>
                     Engineering

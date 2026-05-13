@@ -2,13 +2,22 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
+# wget is needed by the compose-level healthcheck (`wget -qO- /health`); the
+# slim base image doesn't ship it. libgl/libglib are runtime deps for
+# opencv-python-headless on slim.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends wget libgl1 libglib2.0-0 \
+ && rm -rf /var/lib/apt/lists/*
+
 # Install dependencies first (layer-cached unless requirements.txt changes)
 COPY src/analytics/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy analytics source
-COPY src/analytics/ ./
+# Copy analytics source into a package directory so `from analytics.*` imports
+# resolve. main.py uses `from analytics.api.routes import router`, which only
+# works if `/app/analytics/` is on the Python path (it is — CWD is /app).
+COPY src/analytics/ ./analytics/
 
 EXPOSE 8001
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001"]
+CMD ["uvicorn", "analytics.main:app", "--host", "0.0.0.0", "--port", "8001"]

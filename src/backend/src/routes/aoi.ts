@@ -12,8 +12,9 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../db.js';
 import { verifyJwt, requireRole } from '../middleware/auth.js';
-import { NotFoundError, AppError } from '../errors.js';
+import { NotFoundError } from '../errors.js';
 import { logger } from '../logger.js';
+import { config } from '../config.js';
 
 // ── GeoJSON types ────────────────────────────────────────────────────────────
 
@@ -83,7 +84,7 @@ const ListQuerySchema = z.object({
   bopZoneId: z.string().optional(),
 });
 
-const IdParamSchema = z.object({ id: z.string().min(1) });
+interface IdParams { id: string }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -121,11 +122,11 @@ const tryEmitRedisEvent = async (
   try {
     // Redis may not be configured in all environments; import lazily
     const { createClient } = await import('redis');
-    const redis = createClient({ url: process.env['REDIS_URL'] ?? 'redis://localhost:6379' });
+    const redis = createClient({ url: config.REDIS_URL });
     await redis.connect();
     await redis.publish(channel, JSON.stringify(payload));
     await redis.disconnect();
-  } catch (err: unknown) {
+  } catch {
     // Non-fatal — log at debug level only (no credentials or PII)
     logger.debug({ channel }, 'Redis pub/sub emit skipped (Redis unavailable or not configured)');
   }
@@ -183,8 +184,6 @@ export const aoiRoutes = async (app: FastifyInstance): Promise<void> => {
   app.post('/aoi/import', {
     preHandler: [verifyJwt, requireRole('ADMIN', 'OPERATOR')],
     handler: async (req, reply) => {
-      if (!req.user) throw new AppError(401, 'Unauthorized');
-
       // Expect a GeoJSON FeatureCollection body
       const FeatureCollectionSchema = z.object({
         type: z.literal('FeatureCollection'),
@@ -233,7 +232,7 @@ export const aoiRoutes = async (app: FastifyInstance): Promise<void> => {
               name,
               bopZoneId:    bopZoneId ?? null,
               geometryJson: JSON.stringify(sanitized),
-              createdById:  req.user.sub,
+              createdById:  req.user!.sub,
             },
           });
 
@@ -253,8 +252,6 @@ export const aoiRoutes = async (app: FastifyInstance): Promise<void> => {
   app.post('/aoi', {
     preHandler: [verifyJwt, requireRole('ADMIN', 'OPERATOR')],
     handler: async (req, reply) => {
-      if (!req.user) throw new AppError(401, 'Unauthorized');
-
       const bodyParsed = CreateAoiBodySchema.safeParse(req.body);
       if (!bodyParsed.success) {
         return reply.code(400).send({ error: 'Validation error', details: bodyParsed.error.issues });
@@ -269,7 +266,7 @@ export const aoiRoutes = async (app: FastifyInstance): Promise<void> => {
             name,
             bopZoneId:    bopZoneId ?? null,
             geometryJson: JSON.stringify(sanitized),
-            createdById:  req.user.sub,
+            createdById:  req.user!.sub,
           },
         });
 
@@ -291,20 +288,15 @@ export const aoiRoutes = async (app: FastifyInstance): Promise<void> => {
   });
 
   // ── PATCH /aoi/:id ────────────────────────────────────────────────────────
-  app.patch('/aoi/:id', {
+  app.patch<{ Params: IdParams }>('/aoi/:id', {
     preHandler: [verifyJwt, requireRole('ADMIN', 'OPERATOR')],
     handler: async (req, reply) => {
-      const paramParsed = IdParamSchema.safeParse(req.params);
-      if (!paramParsed.success) {
-        return reply.code(400).send({ error: 'Invalid id' });
-      }
-
       const bodyParsed = UpdateAoiBodySchema.safeParse(req.body);
       if (!bodyParsed.success) {
         return reply.code(400).send({ error: 'Validation error', details: bodyParsed.error.issues });
       }
 
-      const { id } = paramParsed.data;
+      const { id } = req.params;
       const { name, bopZoneId, geometry } = bodyParsed.data;
 
       try {
@@ -340,15 +332,10 @@ export const aoiRoutes = async (app: FastifyInstance): Promise<void> => {
   });
 
   // ── DELETE /aoi/:id ───────────────────────────────────────────────────────
-  app.delete('/aoi/:id', {
+  app.delete<{ Params: IdParams }>('/aoi/:id', {
     preHandler: [verifyJwt, requireRole('ADMIN')],
     handler: async (req, reply) => {
-      const paramParsed = IdParamSchema.safeParse(req.params);
-      if (!paramParsed.success) {
-        return reply.code(400).send({ error: 'Invalid id' });
-      }
-
-      const { id } = paramParsed.data;
+      const { id } = req.params;
 
       try {
         const existing = await prisma.aoi.findUnique({ where: { id } });
@@ -371,15 +358,10 @@ export const aoiRoutes = async (app: FastifyInstance): Promise<void> => {
   });
 
   // ── GET /aoi/:id/export ───────────────────────────────────────────────────
-  app.get('/aoi/:id/export', {
+  app.get<{ Params: IdParams }>('/aoi/:id/export', {
     preHandler: [verifyJwt, requireRole('ADMIN', 'OPERATOR', 'VIEWER', 'ENGINEER')],
     handler: async (req, reply) => {
-      const paramParsed = IdParamSchema.safeParse(req.params);
-      if (!paramParsed.success) {
-        return reply.code(400).send({ error: 'Invalid id' });
-      }
-
-      const { id } = paramParsed.data;
+      const { id } = req.params;
 
       try {
         const row = await prisma.aoi.findUnique({
