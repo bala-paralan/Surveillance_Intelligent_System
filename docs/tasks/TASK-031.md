@@ -5,10 +5,11 @@
 **Priority:** P0
 **Status:** Proposed
 **Complexity:** L
-**Primary owner:** DevOps Agent (Lead) + Backend Agent + Frontend Agent + Analytics Agent + QA Agent
+**Primary owner:** Repo owner (single-owner project — no separate DRI assignment)
 **Depends on:** —
-**Estimate:** 8–12 sprint days (see budget breakdown below)
+**Estimate:** 15–25 sprint days (was 8–12 when Render was a candidate; K8s with no existing manifests is materially larger — see updated budget below)
 **Tracking issue:** #14
+**Deploy target:** Kubernetes (decided 2026-05-14). `infra/k8s/` currently exists as an empty directory; manifests need to be authored from scratch.
 
 ---
 
@@ -89,15 +90,22 @@ Each layer revealed the next. Continuing this pattern of "one PR per visible fai
 | Verify full pytest run passes with `requirements.txt` deps installed | Need green CI run | Was only verified at the *collection* level locally |
 | Decide whether to normalize the dual import style (`analytics.X` vs `detectors.X`) | Defer (separate task) | Working today, ugly tomorrow |
 
-### 4. Deploy wiring (estimated 2–4 days, mostly user-blocked)
+### 4. Deploy wiring — Kubernetes (estimated 6–10 days; `infra/k8s/` is currently empty)
 
-| Item | Status | Owner | Blocker |
+| Item | Status | Owner | Notes |
 |---|---|---|---|
-| **Decide: Render or Kubernetes** | Not decided | User | Inconsistency: `deploy.yml` says Render, `infra/k8s/` exists. Pick one. |
-| Provision target environment(s) | Not done | User (billing) | Cannot delegate to agent |
-| Add repo secrets (`RENDER_DEPLOY_HOOK_*` or `KUBECONFIG_PROD`) | Not done | User | Cannot delegate to agent |
-| Uncomment / rewrite deploy steps in `deploy.yml` | Not drafted | DevOps Agent | Unblocks once target chosen |
-| Smoke-test: push trivial commit to `main`, verify a new revision lands | Not done | DevOps Agent + QA Agent | All of the above first |
+| **Decide: managed K8s provider** (EKS / GKE / AKS / DOKS / self-host) | Not decided | User | Cost + ops familiarity tradeoff |
+| Provision cluster (control plane + workers + VPC + IAM) | Not done | User | Cannot delegate; pick provider first |
+| Provision managed Postgres (CloudSQL / RDS / AlloyDB / DO managed PG) | Not done | User | Strongly recommend managed for prod |
+| Provision managed Redis (or run via operator) | Not done | User | Same |
+| Pick manifest tooling: raw YAML + Kustomize vs. Helm | Not decided | Repo owner | Influences all subsequent author work |
+| Author Deployment / Service / Ingress for frontend, backend, analytics | Not drafted | Agent | Tooling decision first |
+| Author ConfigMap + Secret ref structure (12-factor: no `.env` files in prod) | Not drafted | Agent | Tooling decision first |
+| Install ingress-nginx + cert-manager; configure TLS | Not done | Agent | Cluster up first |
+| Add image-build jobs to CI: build → tag (commit SHA) → push to GHCR | Not drafted | Agent | GHCR is free for this repo |
+| Rewrite `deploy.yml` to `kubectl apply -k infra/k8s/overlays/prod` (or Helm install/upgrade), with rollout status check + rollback | Not drafted | Agent | Manifests + KUBECONFIG_PROD first |
+| Add `KUBECONFIG_PROD` to repo secrets (or set up OIDC federation, preferred) | Not done | User | Cannot delegate |
+| Smoke-test: push trivial commit to `main`, watch pods roll over, verify the new revision serves traffic | Not done | Agent + User | All of the above first |
 
 ### 5. Branch protection + missing gates (estimated 1 day)
 
@@ -110,19 +118,22 @@ Each layer revealed the next. Continuing this pattern of "one PR per visible fai
 
 ## Budget
 
-Total estimate: **8–12 sprint days** spread across multiple agents.
+Total estimate: **15–25 sprint days** of agent-driven work, single-owner project. Up from the original 8–12 because K8s deploy requires authoring manifests from scratch in a currently-empty `infra/k8s/`, plus image-build pipeline that wasn't needed for Render.
 
-| Workstream | Days | Owner |
+| Workstream | Days | Notes |
 |---|---|---|
-| Frontend gate green | 1–2 | Frontend Agent |
-| Backend gate green | 4–6 | Backend Agent (with Lead review on the 3 Prisma issues) |
-| Analytics gate green | 1–2 | Analytics Agent |
-| Deploy wiring (agent side; user-side is separate) | 1 | DevOps Agent |
-| Branch protection + missing gates | 1 | DevOps Agent |
+| Frontend gate green | 1–2 | PRs #10, #11 cover most of it |
+| Backend gate green | 4–6 | The 3 Prisma `Record<string, unknown> → InputJsonValue` mismatches need real type design |
+| Analytics gate green | 1–2 | PR #13 covers the obvious fix; need full run verification |
+| K8s manifests + image registry + deploy.yml rewrite | 6–10 | Was 1 day with Render. Pace depends on Kustomize vs. Helm choice. |
+| Branch protection + missing gates (E2E, lint) | 1 | |
+| Smoke-test the end-to-end deploy path | 1–2 | Inevitable iteration on K8s config |
 
-User-side blockers (not in the 8–12 day estimate, not delegable):
-- Render vs. K8s decision
-- Provisioning + secrets
+User-blocked items (not in the day estimate above, but block the K8s workstream):
+- Managed K8s provider decision
+- Cloud account + billing
+- Managed Postgres + Redis decisions
+- Provisioning + `KUBECONFIG_PROD` secret (or OIDC setup)
 
 ## Risks and mitigations
 
@@ -130,9 +141,11 @@ User-side blockers (not in the 8–12 day estimate, not delegable):
 |---|---|---|---|
 | Backend `npm test` reveals more failures once typecheck passes | High | Major | Treat as part of the backend workstream estimate; don't ship to deploy wiring until tests pass |
 | Prisma type fixes change runtime behavior | Medium | Major | Each of the 3 sites needs its own commit + review; add a regression test where feasible |
-| Render hooks chosen but team actually wants K8s | Medium | Major | Force the decision before any deploy work starts; document the choice in this task |
+| K8s cluster cost outruns budget before the system ships | Medium | Major | Start on cheapest viable tier (DOKS small node or GKE Autopilot); scale up only after staging works end-to-end |
+| Stateful workloads (Postgres, Redis) in-cluster done badly → data loss | Medium | **Critical** | **Strongly recommend managed DB services** over in-cluster operators for a security product. Treat as a hard preference, not a suggestion. |
 | Branch protection blocks legitimate hotfix workflow | Low | Minor | Document the "admin override" path in the runbook |
-| Sprint runs over budget | Medium | Minor | Frontend + Analytics first (smaller, higher-confidence), backend last (riskier) — fail-fast structure |
+| Single-owner sprint stalls when owner is interrupted | High | Major | No separate DRI was assigned by choice (single-owner project). Mitigation: keep PR sizes small so each one is a viable resumption point if context is lost |
+| Sprint runs over budget | Medium | Minor | Frontend + Analytics first (smaller, higher-confidence), backend + K8s last (riskier) — fail-fast structure |
 
 ## Testing strategy
 
@@ -142,9 +155,11 @@ User-side blockers (not in the 8–12 day estimate, not delegable):
 
 ## Security
 
-- Production secrets (`RENDER_DEPLOY_HOOK_*`, `KUBECONFIG_PROD`, observability tokens) MUST be stored as GitHub repo secrets — never committed.
+- Production secrets (`KUBECONFIG_PROD`, registry tokens, DB connection strings, JWT/encryption keys, observability tokens) MUST be stored as GitHub repo secrets — never committed.
+- In-cluster: all sensitive config goes via K8s Secret resources, never ConfigMaps or env literals in manifests. Consider Sealed Secrets, External Secrets Operator, or cloud-provider secret managers (AWS/GCP Secret Manager) to keep even encrypted secret material out of git.
 - Branch protection should require linear history to keep `git log main` auditable.
-- The deploy job's permissions in workflow YAML should be scoped to the minimum needed.
+- The deploy workflow's cloud permissions should be scoped to the minimum needed. **OIDC federation is strongly preferred over committing a long-lived `KUBECONFIG_PROD`** — fewer secrets to rotate, less blast radius if leaked.
+- Camera credentials encryption (CLAUDE.md AES-256 rule) means the backend needs `ENCRYPTION_KEY` injected from a K8s Secret at pod start — design the manifest so this is enforced at startup, not optional.
 
 ## Definition of done
 
