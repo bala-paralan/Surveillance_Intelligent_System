@@ -114,6 +114,7 @@ export const SentryShell = () => {
           crumbs={CRUMBS[page]}
           theme={tweaks.theme}
           onTheme={toggleTheme}
+          onLogout={() => setPage('login')}
         />
         <main className="main">{renderPage()}</main>
       </div>
