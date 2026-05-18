@@ -1,8 +1,6 @@
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { NavBar } from '@/components/layout/NavBar';
 import { RequireAuth } from '@/components/auth/RequireAuth';
-import { LoginPage } from '@/components/auth/LoginPage';
-import { OperatorDashboard } from '@/pages/OperatorDashboard';
 import { AoiPage } from '@/pages/AoiPage';
 import { EngineeringPage } from '@/pages/EngineeringPage';
 import { SentryShell } from '@/sentry/SentryShell';
@@ -28,7 +26,6 @@ const CamerasPlaceholder = () => (
 
 export const App = () => {
   const location = useLocation();
-  const isLoginPage = location.pathname === '/login';
   const isSentryRoute = location.pathname.startsWith('/sentry');
 
   if (isSentryRoute) {
@@ -41,20 +38,9 @@ export const App = () => {
 
   return (
     <div className="min-h-screen bg-gray-900">
-      {!isLoginPage && <NavBar />}
+      <NavBar />
       <Routes>
-        <Route path="/login" element={<LoginPage />} />
-
         <Route path="/" element={<Navigate to="/sentry" replace />} />
-
-        <Route
-          path="/operator"
-          element={
-            <RequireAuth>
-              <OperatorDashboard />
-            </RequireAuth>
-          }
-        />
 
         <Route
           path="/aoi"
