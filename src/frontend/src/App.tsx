@@ -1,4 +1,4 @@
-import { Routes, Route, useLocation } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { NavBar } from '@/components/layout/NavBar';
 import { RequireAuth } from '@/components/auth/RequireAuth';
 import { LoginPage } from '@/components/auth/LoginPage';
@@ -45,14 +45,7 @@ export const App = () => {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
 
-        <Route
-          path="/"
-          element={
-            <RequireAuth>
-              <OperatorDashboard />
-            </RequireAuth>
-          }
-        />
+        <Route path="/" element={<Navigate to="/sentry" replace />} />
 
         <Route
           path="/operator"
