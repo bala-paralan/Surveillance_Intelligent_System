@@ -28,7 +28,7 @@ export const RequireAuth = ({ children }: RequireAuthProps) => {
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
+    return <Navigate to="/sentry" state={{ from: location }} replace />;
   }
 
   return <>{children}</>;
