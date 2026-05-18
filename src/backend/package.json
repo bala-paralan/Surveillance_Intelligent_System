@@ -8,6 +8,7 @@
     "start":     "tsx src/index.ts",
     "typecheck": "tsc --noEmit",
     "test:backend": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "db:migrate": "prisma migrate dev",
     "db:seed":    "tsx prisma/seed.ts",
     "db:generate":"prisma generate"
