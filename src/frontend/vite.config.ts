@@ -18,6 +18,17 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          'vendor-maplibre': ['maplibre-gl', '@mapbox/mapbox-gl-draw'],
+          'vendor-data': ['@tanstack/react-query', 'zustand'],
+        },
+      },
+    },
+  },
   test: {
     environment: 'jsdom',
     globals: true,
