@@ -1,8 +1,20 @@
 import { useState } from 'react';
 import { Icon } from '../components/Icon';
 import { Severity } from '../components/Severity';
-import { ALERTS, type AlertStatus } from '../data';
+import { ALERTS, type AlertStatus, type AlertRow } from '../data';
 import type { PageKey } from '../types';
+import { buildCsv, downloadCsv, timestampForFilename, type CsvColumn } from '../utils/csv';
+
+const ALERT_CSV_COLUMNS: ReadonlyArray<CsvColumn<AlertRow>> = [
+  { header: 'Alert ID',   value: (a) => a.id     },
+  { header: 'Type',       value: (a) => a.type   },
+  { header: 'Severity',   value: (a) => a.sev    },
+  { header: 'Sector',     value: (a) => a.sector },
+  { header: 'Camera',     value: (a) => a.cam    },
+  { header: 'Confidence', value: (a) => (a.conf * 100).toFixed(1) },
+  { header: 'When',       value: (a) => a.whenISO },
+  { header: 'Status',     value: (a) => a.status },
+];
 
 type FilterValue = 'All' | AlertStatus;
 
@@ -33,6 +45,11 @@ export const AlertsPage = ({ onNav }: AlertsPageProps) => {
 
   const filtered = filter === 'All' ? ALERTS : ALERTS.filter((a) => a.status === filter);
 
+  const handleExportCsv = () => {
+    const csv = buildCsv(filtered, ALERT_CSV_COLUMNS);
+    downloadCsv(`alerts-${filter.toLowerCase().replace(/\s+/g, '-')}-${timestampForFilename()}.csv`, csv);
+  };
+
   return (
     <div className="page">
       <div className="page-head">
@@ -42,7 +59,7 @@ export const AlertsPage = ({ onNav }: AlertsPageProps) => {
         </div>
         <div className="actions">
           <button className="btn"><Icon name="filter" /> Filters</button>
-          <button className="btn"><Icon name="dl" /> Export CSV</button>
+          <button className="btn" onClick={handleExportCsv}><Icon name="dl" /> Export CSV</button>
         </div>
       </div>
 

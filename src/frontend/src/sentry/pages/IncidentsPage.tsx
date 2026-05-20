@@ -1,8 +1,20 @@
 import { useState } from 'react';
 import { Icon } from '../components/Icon';
 import { Severity } from '../components/Severity';
-import { INCIDENTS } from '../data';
+import { INCIDENTS, type Incident } from '../data';
 import type { PageKey } from '../types';
+import { buildCsv, downloadCsv, timestampForFilename, type CsvColumn } from '../utils/csv';
+
+const INCIDENT_CSV_COLUMNS: ReadonlyArray<CsvColumn<Incident>> = [
+  { header: 'Incident ID', value: (i) => i.id        },
+  { header: 'Title',       value: (i) => i.title     },
+  { header: 'Severity',    value: (i) => i.sev       },
+  { header: 'Sector',      value: (i) => i.sector    },
+  { header: 'Opened',      value: (i) => i.opened    },
+  { header: 'Responder',   value: (i) => i.responder },
+  { header: 'Alerts',      value: (i) => i.alerts    },
+  { header: 'Status',      value: (i) => i.status    },
+];
 
 type FilterValue = 'All' | 'In Progress' | 'Investigating' | 'Escalated' | 'Resolved' | 'Closed';
 
@@ -23,6 +35,11 @@ export const IncidentsPage = ({ onNav }: IncidentsPageProps) => {
 
   const filtered = filter === 'All' ? INCIDENTS : INCIDENTS.filter((i) => i.status === filter);
 
+  const handleExportCsv = () => {
+    const csv = buildCsv(filtered, INCIDENT_CSV_COLUMNS);
+    downloadCsv(`incidents-${filter.toLowerCase().replace(/\s+/g, '-')}-${timestampForFilename()}.csv`, csv);
+  };
+
   return (
     <div className="page">
       <div className="page-head">
@@ -32,7 +49,7 @@ export const IncidentsPage = ({ onNav }: IncidentsPageProps) => {
         </div>
         <div className="actions">
           <button className="btn"><Icon name="filter" /> Filters</button>
-          <button className="btn"><Icon name="dl" /> Export CSV</button>
+          <button className="btn" onClick={handleExportCsv}><Icon name="dl" /> Export CSV</button>
         </div>
       </div>
 

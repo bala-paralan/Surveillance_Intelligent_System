@@ -1,9 +1,14 @@
+import { useState } from 'react';
 import { Icon } from '../components/Icon';
 import { Sparkline } from '../components/Sparkline';
 import { CameraTile } from '../components/CameraTile';
 import { Severity } from '../components/Severity';
 import { ALERTS, INCIDENTS, CAMERAS, SECTORS, SPARK_HOUR, SPARK_DAY } from '../data';
 import type { DashboardVariant, PageKey } from '../types';
+import { buildCsv, downloadCsv, timestampForFilename } from '../utils/csv';
+
+type DashboardRange = 'Today' | '7d' | '30d';
+const DASHBOARD_RANGES: DashboardRange[] = ['Today', '7d', '30d'];
 
 interface DashboardPageProps {
   variant: DashboardVariant;
@@ -111,7 +116,26 @@ const ExecDashboard = () => {
 };
 
 export const DashboardPage = ({ variant, onNav }: DashboardPageProps) => {
+  const [range, setRange] = useState<DashboardRange>('Today');
+
   if (variant === 'exec') return <ExecDashboard />;
+
+  const handleExport = () => {
+    const csv = buildCsv(
+      [
+        { metric: 'Active alerts',     value: ALERTS.filter((a) => a.status === 'Open').length, range },
+        { metric: 'Open incidents',    value: INCIDENTS.length,                                   range },
+        { metric: 'Cameras online',    value: CAMERAS.filter((c) => c.status !== 'off').length,  range },
+        { metric: 'Sectors monitored', value: SECTORS.length,                                     range },
+      ],
+      [
+        { header: 'Metric', value: (r) => r.metric },
+        { header: 'Value',  value: (r) => r.value  },
+        { header: 'Range',  value: (r) => r.range  },
+      ],
+    );
+    downloadCsv(`dashboard-${range.toLowerCase()}-${timestampForFilename()}.csv`, csv);
+  };
 
   return (
     <div className="page">
@@ -132,17 +156,23 @@ export const DashboardPage = ({ variant, onNav }: DashboardPageProps) => {
               padding: 2,
             }}
           >
-            {['Today', '7d', '30d'].map((p, i) => (
-              <button
-                key={p}
-                className="btn ghost sm"
-                style={i === 0 ? { background: 'var(--bg-hover)', color: 'var(--ink)' } : undefined}
-              >
-                {p}
-              </button>
-            ))}
+            {DASHBOARD_RANGES.map((p) => {
+              const isActive = p === range;
+              return (
+                <button
+                  key={p}
+                  type="button"
+                  className="btn ghost sm"
+                  aria-pressed={isActive}
+                  onClick={() => setRange(p)}
+                  style={isActive ? { background: 'var(--bg-hover)', color: 'var(--ink)' } : undefined}
+                >
+                  {p}
+                </button>
+              );
+            })}
           </div>
-          <button className="btn"><Icon name="dl" /> Export</button>
+          <button className="btn" onClick={handleExport}><Icon name="dl" /> Export</button>
           <button className="btn accent"><Icon name="plus" /> New incident</button>
         </div>
       </div>
