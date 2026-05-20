@@ -2,10 +2,10 @@
 
 **Created:** 2026-04-16  
 **Sprint:** 1  
-**Status:** In Progress — agents assigned 2026-04-16  
+**Status:** ✅ Done — merged 2026-04-24 on branch `fix/task-001-conventions` (outer + dashboard repos)  
 **Complexity:** L  
 **Requested by:** Product Owner (via Cowork Template 1)  
-**Lead Agent Review:** Required before any new features are added
+**Lead Agent Review:** Complete — all criticals and majors resolved, QA green, Sprint 2 unblocked
 
 ---
 
@@ -126,23 +126,23 @@ Phase 4 — QA verification
 
 ## Definition of done
 
-- [ ] C-1: All REST routes (except `/api/health`) return `401` when called without a valid JWT
-- [ ] C-2: `global.__wss` removed; `wsServer` passed via function argument or module export
-- [ ] M-1: Zero `export default` in `dashboard/src/` (excluding `vite-env.d.ts`)
-- [ ] M-2: `VideoPanel` uses the shared `useWebSocket` hook; no standalone `new WebSocket()` inside component
-- [ ] M-3: All imports in `dashboard/src/` use `@/` alias; zero `../../` relative paths
-- [ ] M-4: Inline `style={{}}` replaced with Tailwind classes across all panel components
-- [ ] M-5: Zero `console.warn` / `console.log` in `dashboard/src/` production paths
-- [ ] M-6: `npm run test:frontend` succeeds
-- [ ] M-7: `noUnusedLocals: true`, `noUnusedParameters: true` in tsconfig; zero new TS errors
-- [ ] M-8: All `sse/src/` files converted to `.ts`; `npm run build` passes in sse/
-- [ ] M-9: All SSE REST routes validated with Zod schemas
-- [ ] M-10: Zero `export default` in `sse/src/`
-- [ ] M-11: All `console.log` in `sse/` replaced with structured pino logger calls
-- [ ] mn-1: `engines.node` updated to `>=22` in `sse/package.json`
-- [ ] mn-2: `sse/.env.example` created
-- [ ] mn-3: Coverage thresholds configured in vitest — frontend ≥80% lines, backend ≥85% lines
-- [ ] QA Agent green on full test suite with no regressions
+- [x] C-1: All REST routes (except `/api/health`) return `401` when called without a valid JWT — `jwt.verify()` against `SSE_JWT_SECRET`, dev-mode bypass, raw API key pattern replaced
+- [x] C-2: `global.__wss` removed; `wsServer` passed via function argument or module export
+- [x] M-1: Zero `export default` in `dashboard/src/` (excluding `vite-env.d.ts`)
+- [x] M-2: `VideoPanel` uses the shared `useWebSocket` hook; no standalone `new WebSocket()` inside component
+- [x] M-3: All imports in `dashboard/src/` use `@/` alias; zero `../../` relative paths
+- [x] M-4: Inline `style={{}}` replaced with Tailwind classes across all panel components (incl. `DeviceConfigPage` 4-tab layout)
+- [x] M-5: Zero `console.warn` / `console.log` in `dashboard/src/` production paths
+- [x] M-6: `npm run test:frontend` succeeds
+- [x] M-7: `noUnusedLocals: true`, `noUnusedParameters: true` in tsconfig; zero new TS errors
+- [x] M-8: All `sse/src/` files converted to `.ts` (16 files); `tsc --noEmit` green, private class fields, typed generics, zero `any`, ES2022 + NodeNext
+- [x] M-9: All SSE REST routes validated with Zod schemas — `AlertsQuery` on `/api/alerts`, response enriched with `total/page/limit`
+- [x] M-10: Zero `export default` in `sse/src/`
+- [x] M-11: All `console.log` in `sse/` replaced with structured pino logger calls
+- [x] mn-1: `engines.node` updated to `>=22` in `sse/package.json`
+- [x] mn-2: `sse/.env.example` created
+- [x] mn-3: Coverage thresholds configured in vitest — frontend ≥80% lines, backend ≥85% lines
+- [x] QA Agent green on full test suite — 273 dashboard tests green, no regressions
 
 ---
 

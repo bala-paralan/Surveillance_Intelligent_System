@@ -1,9 +1,42 @@
 # SurveillanceOS — Task Index
 
 > Source of truth for all engineering tasks. Managed by the Lead Agent.
-> Last updated: 2026-04-22
+> Last updated: 2026-04-24
 
-Tasks are numbered sequentially (`TASK-XXX`). Sprint 1–4 tasks (TASK-001 through TASK-012) are tracked in `ROADMAP.md` and are mandatory foundation work. Phase 1–5 tasks (TASK-013 through TASK-030) are the forward feature roadmap and **must not start until TASK-001 is QA green**.
+Tasks are numbered sequentially (`TASK-XXX`). Sprint 1–4 tasks (TASK-001 through TASK-012) are tracked in `ROADMAP.md` and are mandatory foundation work. Phase 1–5 tasks (TASK-013 through TASK-030) are the forward feature roadmap. **Phase 0 (TASK-031 through TASK-042) is the new top priority** — introduced 2026-04-24 following the SIS.txt product discussion — and sits ahead of Phase 1. **Sprint 1 and Sprint 2 are complete.**
+
+---
+
+## 🔥 Phase 0 — Border Surveillance Multi-Sensor Platform (Top priority)
+
+**Source:** SIS.txt (2026-04-24). See `ROADMAP.md` for the full narrative.
+
+### Phase 0A — Operator UX foundation (critical path: 041 → 031 → 032, 034 in parallel)
+
+| ID | Title | Primary owner | Complexity |
+|----|-------|---------------|------------|
+| TASK-041 | BOP / Site Hierarchy Model (dynamic, GIS-sourced) | Backend + DevOps | M |
+| TASK-031 | AOI Drawing Tool — irregular polygon on live map | Frontend + Backend | M |
+| TASK-032 | Sensor & Asset Catalogue with spatial query inside AOI | Backend + Frontend | M |
+| TASK-034 | Role-split UI — Operator vs Engineering views | Frontend + Backend | M |
+
+### Phase 0B — Multi-sensor ingestion (parallelisable once 0A is merged)
+
+| ID | Title | Primary owner | Complexity |
+|----|-------|---------------|------------|
+| TASK-035 | Seismic sensor ingestion + pattern classification | Analytics + Backend | L |
+| TASK-036 | Acoustic sensor ingestion + classification | Analytics + Backend | M |
+| TASK-037 | Thermal / LIDAR / Pan-image ingestion adapter | Analytics + Backend | L |
+
+### Phase 0C — Fusion, visualization and operator surface
+
+| ID | Title | Primary owner | Complexity |
+|----|-------|---------------|------------|
+| TASK-039 | Multi-sensor fusion engine — combined confidence scoring | Analytics + Backend | L |
+| TASK-038 | Use-case visualization layer — tunnel / footstep-radius / direction glyphs | Frontend + Analytics | L |
+| TASK-040 | Human-readable alerts on live map | Frontend + Backend | M |
+| TASK-033 | Multi-AOI quadview panel (1 / 2 / 4 split) | Frontend | M |
+| TASK-042 | Engineering & maintenance view — raw waveforms, health, thresholds | Frontend + Backend | M |
 
 ---
 
@@ -11,14 +44,14 @@ Tasks are numbered sequentially (`TASK-XXX`). Sprint 1–4 tasks (TASK-001 throu
 
 | ID | Title | Sprint | Status |
 |----|-------|--------|--------|
-| TASK-001 | Audit & fix `dashboard/` and `sse/` against CLAUDE.md | 1 | 🔴 Open |
-| TASK-002 | Camera CRUD API | 2 | Backlog |
-| TASK-003 | Camera grid UI with live thumbnails | 2 | Backlog |
-| TASK-004 | HLS stream proxy | 2 | Backlog |
-| TASK-005 | JWT auth + RBAC | 2 | Backlog |
-| TASK-006 | YOLOv8 person detection microservice | 3 | Backlog |
-| TASK-007 | Zone-based intrusion logic (basic polygon zones) | 3 | Backlog |
-| TASK-008 | Real-time alert feed | 3 | Backlog |
+| TASK-001 | Audit & fix `dashboard/` and `sse/` against CLAUDE.md | 1 | ✅ Done (2026-04-24) |
+| TASK-002 | Camera CRUD API | 2 | ✅ Done (commit `be9e850`) |
+| TASK-003 | Camera grid UI with live thumbnails | 2 | ✅ Done (commit `bbad4db`) |
+| TASK-004 | HLS stream proxy | 2 | ✅ Done (commit `be9e850`) |
+| TASK-005 | JWT auth + RBAC | 2 | ✅ Done (commit `be9e850`) |
+| TASK-006 | YOLOv8 person detection microservice | 3 | 🔴 Open |
+| TASK-007 | Zone-based intrusion logic (basic polygon zones) | 3 | 🔴 Open |
+| TASK-008 | Real-time alert feed | 3 | 🔴 Open |
 | TASK-009 | Docker Compose dev stack | 4 | Backlog |
 | TASK-010 | GitHub Actions CI/CD | 4 | Backlog |
 | TASK-011 | Prometheus metrics + Grafana | 4 | Backlog |
@@ -73,6 +106,8 @@ Tasks are numbered sequentially (`TASK-XXX`). Sprint 1–4 tasks (TASK-001 throu
 
 ## Phase gating rules
 
+- **Phase 0A is the program's new top priority.** Critical path: TASK-041 → TASK-031 → TASK-032; TASK-034 runs in parallel. No Phase 1 feature work begins until Phase 0A is QA green.
+- Sprint 3 (TASK-006/007/008) continues in parallel with Phase 0 but must emit alerts consumable by TASK-040 without a rewrite — the alert event schema is a shared deliverable.
 - Phase 1 must be 100% QA green before Phase 2 begins.
 - Phase 3 requires TASK-021 (multi-tenant) merged before any customer pilot exceeds 2 sites.
 - Phase 4 mobile app (TASK-024) depends on TASK-005 (RBAC) and TASK-004 (HLS proxy).
