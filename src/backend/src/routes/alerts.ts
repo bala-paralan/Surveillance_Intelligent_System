@@ -4,10 +4,12 @@
  * GET    /alerts                   — paginated alert list (VIEWER+)
  * POST   /alerts                   — create alert (ADMIN | OPERATOR | ENGINEER)
  * PATCH  /alerts/:id/acknowledge   — acknowledge (OPERATOR | ADMIN)
+ * PATCH  /alerts/:id/escalate      — escalate (optionally attach to incident) (OPERATOR | ADMIN) [TASK-044]
  * PATCH  /alerts/:id/resolve       — resolve (OPERATOR | ADMIN)
  * GET    /alerts/stats             — severity counts for last 24 h (VIEWER+)
  *
  * On creation the alert is published to Redis channel "alerts:new" (non-fatal).
+ * On escalation the alert is published to "alerts:escalated" (non-fatal).
  */
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
@@ -64,6 +66,10 @@ interface AlertPublic {
   acknowledged:   boolean;
   acknowledgedBy: string | null;
   acknowledgedAt: string | null;
+  escalated:      boolean;
+  escalatedBy:    string | null;
+  escalatedAt:    string | null;
+  incidentId:     string | null;
   resolvedAt:     string | null;
   createdAt:      string;
 }
@@ -79,6 +85,10 @@ const toAlertPublic = (row: {
   acknowledged:   boolean;
   acknowledgedBy: string | null;
   acknowledgedAt: Date | null;
+  escalated:      boolean;
+  escalatedBy:    string | null;
+  escalatedAt:    Date | null;
+  incidentId:     string | null;
   resolvedAt:     Date | null;
   createdAt:      Date;
 }): AlertPublic => ({
@@ -92,6 +102,10 @@ const toAlertPublic = (row: {
   acknowledged:   row.acknowledged,
   acknowledgedBy: row.acknowledgedBy,
   acknowledgedAt: row.acknowledgedAt?.toISOString() ?? null,
+  escalated:      row.escalated,
+  escalatedBy:    row.escalatedBy,
+  escalatedAt:    row.escalatedAt?.toISOString() ?? null,
+  incidentId:     row.incidentId,
   resolvedAt:     row.resolvedAt?.toISOString() ?? null,
   createdAt:      row.createdAt.toISOString(),
 });
@@ -123,9 +137,17 @@ const ALERT_SELECT = {
   acknowledged:   true,
   acknowledgedBy: true,
   acknowledgedAt: true,
+  escalated:      true,
+  escalatedBy:    true,
+  escalatedAt:    true,
+  incidentId:     true,
   resolvedAt:     true,
   createdAt:      true,
 } as const;
+
+const EscalateBodySchema = z.object({
+  incidentId: z.string().min(1).optional(),
+});
 
 // ── Route plugin ──────────────────────────────────────────────────────────────
 
@@ -261,6 +283,71 @@ export const alertRoutes = async (app: FastifyInstance): Promise<void> => {
         return reply.send({ alert: toAlertPublic(row) });
       } catch (err: unknown) {
         logger.error({ err, alertId: id }, 'PATCH /alerts/:id/acknowledge failed');
+        throw err;
+      }
+    },
+  });
+
+  // ── PATCH /alerts/:id/escalate ────────────────────────────────────────────
+  // Escalate an alert; optionally attach it to an existing incident. If no
+  // incidentId is supplied the alert is flagged escalated but unattached and
+  // can be linked later via PATCH /incidents/:id (alertIds) or by re-calling
+  // this endpoint with an incidentId.
+  app.patch('/alerts/:id/escalate', {
+    preHandler: [verifyJwt, requireRole('ADMIN', 'OPERATOR')],
+    handler: async (req, reply) => {
+      if (!req.user) throw new AppError(401, 'Unauthorized');
+
+      const param = IdParamSchema.safeParse(req.params);
+      if (!param.success) return reply.code(400).send({ error: 'Invalid id' });
+
+      const body = EscalateBodySchema.safeParse(req.body ?? {});
+      if (!body.success) {
+        return reply.code(400).send({ error: 'Validation error', details: body.error.flatten() });
+      }
+
+      const { id } = param.data;
+      const { incidentId } = body.data;
+
+      try {
+        const existing = await prisma.alert.findUnique({ where: { id } });
+        if (!existing) throw new NotFoundError('Alert');
+
+        if (incidentId !== undefined) {
+          const incident = await prisma.incident.findUnique({ where: { id: incidentId } });
+          if (!incident) throw new NotFoundError('Incident');
+        }
+
+        const row = await prisma.alert.update({
+          where: { id },
+          data: {
+            escalated:   true,
+            escalatedBy: req.user.sub,
+            escalatedAt: new Date(),
+            ...(incidentId !== undefined ? { incidentId } : {}),
+          },
+          select: ALERT_SELECT,
+        });
+
+        const alert = toAlertPublic(row);
+        logger.info({ alertId: id, by: req.user.sub, incidentId: incidentId ?? null }, 'PATCH /alerts/:id/escalate');
+
+        // Publish to Redis (non-fatal)
+        void (async () => {
+          try {
+            const { createClient } = await import('redis');
+            const redis = createClient({ url: process.env['REDIS_URL'] ?? 'redis://localhost:6379' });
+            await redis.connect();
+            await redis.publish('alerts:escalated', JSON.stringify(alert));
+            await redis.disconnect();
+          } catch (err: unknown) {
+            logger.debug({ err }, 'Redis alerts:escalated publish skipped (non-fatal)');
+          }
+        })();
+
+        return reply.send({ alert });
+      } catch (err: unknown) {
+        logger.error({ err, alertId: id }, 'PATCH /alerts/:id/escalate failed');
         throw err;
       }
     },
