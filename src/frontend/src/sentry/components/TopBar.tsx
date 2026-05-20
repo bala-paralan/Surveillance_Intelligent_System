@@ -1,15 +1,44 @@
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { Icon } from './Icon';
 import type { ThemeMode } from '../types';
+import type { AuthenticatedUser } from '../pages/LoginPage';
 
 interface TopBarProps {
-  crumbs: string[];
-  theme: ThemeMode;
-  onTheme: () => void;
+  crumbs:   string[];
+  theme:    ThemeMode;
+  onTheme:  () => void;
   onLogout: () => void;
+  /** Logged-in user; null while the shell is still on the login page. */
+  user:     AuthenticatedUser | null;
 }
 
-export const TopBar = ({ crumbs, theme, onTheme, onLogout }: TopBarProps) => {
+const ROLE_LABEL: Record<string, string> = {
+  ADMIN:    'System Admin',
+  OPERATOR: 'Sector Lead · NW',
+  VIEWER:   'Viewer',
+  ENGINEER: 'Engineer',
+};
+
+const initialsFor = (user: AuthenticatedUser): string => {
+  const base = user.displayName ?? user.email;
+  const parts = base.replace(/@.*$/, '').split(/[.\s_-]+/).filter(Boolean);
+  if (parts.length >= 2) {
+    const first  = parts[0]?.charAt(0) ?? '';
+    const second = parts[1]?.charAt(0) ?? '';
+    return (first + second).toUpperCase();
+  }
+  const first  = parts[0]?.charAt(0) ?? '';
+  const second = parts[0]?.charAt(1) ?? '';
+  return (first + second).toUpperCase() || '?';
+};
+
+const nameFor = (user: AuthenticatedUser): string => {
+  if (user.displayName) return user.displayName;
+  const localPart = user.email.split('@')[0] ?? user.email;
+  return localPart;
+};
+
+export const TopBar = ({ crumbs, theme, onTheme, onLogout, user }: TopBarProps) => {
   const [menuOpen, setMenuOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
 
@@ -68,10 +97,10 @@ export const TopBar = ({ crumbs, theme, onTheme, onLogout }: TopBarProps) => {
           aria-expanded={menuOpen}
           style={{ border: 'none', cursor: 'pointer', font: 'inherit', color: 'inherit' }}
         >
-          <div className="avatar">MR</div>
+          <div className="avatar">{user ? initialsFor(user) : '??'}</div>
           <div style={{ textAlign: 'left' }}>
-            <div className="name">M. Rivera</div>
-            <div className="role">Sector Lead · NW</div>
+            <div className="name">{user ? nameFor(user) : 'Signed out'}</div>
+            <div className="role">{user ? (ROLE_LABEL[user.role] ?? user.role) : ' '}</div>
           </div>
           <Icon name="chev" size={12} />
         </button>
