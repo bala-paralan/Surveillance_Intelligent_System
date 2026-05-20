@@ -1,36 +1,59 @@
 /**
- * Prisma seed — creates the default admin user if not present.
+ * Prisma seed — provisions one user per role (ADMIN, OPERATOR, VIEWER).
  * Run: npx tsx prisma/seed.ts
  */
 import bcrypt from 'bcryptjs';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Role } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-const ADMIN_EMAIL    = process.env['SEED_ADMIN_EMAIL']    ?? 'admin@surveillance.local';
-const ADMIN_PASSWORD = process.env['SEED_ADMIN_PASSWORD'] ?? 'ChangeMe123!';
-const ADMIN_NAME     = process.env['SEED_ADMIN_NAME']     ?? 'System Admin';
+interface SeedUser {
+  email:       string;
+  password:    string;
+  displayName: string;
+  role:        Role;
+}
 
-async function main(): Promise<void> {
-  const existing = await prisma.user.findUnique({ where: { email: ADMIN_EMAIL } });
+const seedUsers: SeedUser[] = [
+  {
+    email:       process.env['SEED_ADMIN_EMAIL']    ?? 'admin@surveillance.local',
+    password:    process.env['SEED_ADMIN_PASSWORD'] ?? 'ChangeMe123!',
+    displayName: process.env['SEED_ADMIN_NAME']     ?? 'System Admin',
+    role:        Role.ADMIN,
+  },
+  {
+    email:       process.env['SEED_OPERATOR_EMAIL']    ?? 'operator@surveillance.local',
+    password:    process.env['SEED_OPERATOR_PASSWORD'] ?? 'OperatorPass123!',
+    displayName: process.env['SEED_OPERATOR_NAME']     ?? 'Default Operator',
+    role:        Role.OPERATOR,
+  },
+  {
+    email:       process.env['SEED_VIEWER_EMAIL']    ?? 'viewer@surveillance.local',
+    password:    process.env['SEED_VIEWER_PASSWORD'] ?? 'ViewerPass123!',
+    displayName: process.env['SEED_VIEWER_NAME']     ?? 'Default Viewer',
+    role:        Role.VIEWER,
+  },
+];
+
+const upsertUser = async ({ email, password, displayName, role }: SeedUser): Promise<void> => {
+  const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {
-    console.log(`Admin user already exists: ${ADMIN_EMAIL}`);
+    console.log(`User already exists: ${email} (${role})`);
     return;
   }
-
-  const passwordHash = await bcrypt.hash(ADMIN_PASSWORD, 12);
+  const passwordHash = await bcrypt.hash(password, 12);
   const user = await prisma.user.create({
-    data: {
-      email:       ADMIN_EMAIL,
-      passwordHash,
-      displayName: ADMIN_NAME,
-      role:        'ADMIN',
-      active:      true,
-    },
+    data: { email, passwordHash, displayName, role, active: true },
   });
-  console.log(`Created admin user: ${user.email} (id: ${user.id})`);
-  console.log('⚠️  Change the default password immediately in production!');
-}
+  console.log(`Created ${role} user: ${user.email} (id: ${user.id})`);
+};
+
+const main = async (): Promise<void> => {
+  for (const u of seedUsers) {
+    await upsertUser(u);
+  }
+  console.log('⚠️  Change default passwords immediately in production!');
+};
 
 main()
   .catch((e) => { console.error(e); process.exit(1); })
