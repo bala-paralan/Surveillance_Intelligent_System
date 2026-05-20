@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { SideNav } from './components/SideNav';
 import { TopBar } from './components/TopBar';
-import { LoginPage } from './pages/LoginPage';
+import { LoginPage, type AuthenticatedUser } from './pages/LoginPage';
+import { clearTokens } from '@/api/client';
 import { DashboardPage } from './pages/DashboardPage';
 import { LivePage } from './pages/LivePage';
 import { MapPage } from './pages/MapPage';
@@ -64,6 +65,18 @@ const DEFAULTS: TweaksState = {
 export const SentryShell = () => {
   const [tweaks, setTweaks] = useState<TweaksState>(DEFAULTS);
   const [page, setPage] = useState<PageKey | 'login'>('login');
+  const [user, setUser] = useState<AuthenticatedUser | null>(null);
+
+  const handleLogin = (next: AuthenticatedUser): void => {
+    setUser(next);
+    setPage('dashboard');
+  };
+
+  const handleLogout = (): void => {
+    clearTokens();
+    setUser(null);
+    setPage('login');
+  };
 
   const accentVars = useMemo(() => {
     const a = ACCENTS[tweaks.accent];
@@ -79,7 +92,7 @@ export const SentryShell = () => {
   if (page === 'login') {
     return (
       <div className="sentry-app" data-theme={tweaks.theme} style={accentVars}>
-        <LoginPage onLogin={() => setPage('dashboard')} />
+        <LoginPage onLogin={handleLogin} />
       </div>
     );
   }
@@ -114,7 +127,8 @@ export const SentryShell = () => {
           crumbs={CRUMBS[page]}
           theme={tweaks.theme}
           onTheme={toggleTheme}
-          onLogout={() => setPage('login')}
+          onLogout={handleLogout}
+          user={user}
         />
         <main className="main">{renderPage()}</main>
       </div>

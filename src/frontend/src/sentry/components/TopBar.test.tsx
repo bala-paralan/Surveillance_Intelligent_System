@@ -2,6 +2,16 @@ import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { TopBar } from './TopBar';
+import type { AuthenticatedUser } from '../pages/LoginPage';
+
+// Display-name fixture chosen so the historical test assertions that query
+// for /M\. Rivera/i continue to pass without behavioural changes.
+const RIVERA_USER: AuthenticatedUser = {
+  id:          'u_test',
+  email:       'm.rivera@sentry.gov',
+  role:        'OPERATOR',
+  displayName: 'M. Rivera',
+};
 
 const renderTopBar = (overrides?: Partial<Parameters<typeof TopBar>[0]>) => {
   const onTheme = vi.fn();
@@ -12,6 +22,7 @@ const renderTopBar = (overrides?: Partial<Parameters<typeof TopBar>[0]>) => {
       theme="light"
       onTheme={onTheme}
       onLogout={onLogout}
+      user={RIVERA_USER}
       {...overrides}
     />,
   );

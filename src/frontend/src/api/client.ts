@@ -1,4 +1,9 @@
-const BASE_URL = (import.meta.env['VITE_API_URL'] as string | undefined) ?? 'http://localhost:3001';
+// Defaults to the relative path `/api` which works in both:
+//   • Vite dev server  (proxies /api → backend:3001 with rewrite stripping /api)
+//   • Production nginx (proxies /api/ → backend:3001/ with trailing-slash strip)
+// Override with VITE_API_URL=http://localhost:3001 (etc.) when calling a
+// backend on a different origin without a proxy in front.
+const BASE_URL = (import.meta.env['VITE_API_URL'] as string | undefined) ?? '/api';
 
 const ACCESS_TOKEN_KEY = 'sos_access_token';
 const REFRESH_TOKEN_KEY = 'sos_refresh_token';
