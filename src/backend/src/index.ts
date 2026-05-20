@@ -18,6 +18,7 @@ import { aoiRoutes } from './routes/aoi.js';
 import { catalogueRoutes } from './routes/catalogue.js';
 import { zoneRoutes } from './routes/zones.js';
 import { alertRoutes } from './routes/alerts.js';
+import { incidentRoutes } from './routes/incidents.js';
 import { AppError } from './errors.js';
 import { stopAllStreams } from './services/stream-service.js';
 import { metricsPlugin } from './middleware/metrics.js';
@@ -63,6 +64,7 @@ await app.register(aoiRoutes);
 await app.register(catalogueRoutes);
 await app.register(zoneRoutes);
 await app.register(alertRoutes);
+await app.register(incidentRoutes);
 await app.register(recordingRoutes);
 await app.register(fusionRoutes);
 
