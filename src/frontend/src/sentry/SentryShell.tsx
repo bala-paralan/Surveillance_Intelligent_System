@@ -7,6 +7,7 @@ import { DashboardPage } from './pages/DashboardPage';
 import { LivePage } from './pages/LivePage';
 import { MapPage } from './pages/MapPage';
 import { AlertsPage } from './pages/AlertsPage';
+import { IncidentsPage } from './pages/IncidentsPage';
 import { IncidentPage } from './pages/IncidentPage';
 import { SearchPage } from './pages/SearchPage';
 import { TimelinePage } from './pages/TimelinePage';
@@ -108,7 +109,7 @@ export const SentryShell = () => {
       case 'live':      return <LivePage />;
       case 'map':       return <MapPage />;
       case 'alerts':    return <AlertsPage onNav={setPage} />;
-      case 'incidents': return <AlertsPage onNav={setPage} />;
+      case 'incidents': return <IncidentsPage onNav={setPage} />;
       case 'incident':  return <IncidentPage />;
       case 'search':    return <SearchPage />;
       case 'timeline':  return <TimelinePage />;

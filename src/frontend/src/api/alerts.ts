@@ -24,6 +24,10 @@ export interface AlertPublic {
   acknowledged:   boolean;
   acknowledgedBy: string | null;
   acknowledgedAt: string | null;
+  escalated:      boolean;
+  escalatedBy:    string | null;
+  escalatedAt:    string | null;
+  incidentId:     string | null;
   resolvedAt:     string | null;
   createdAt:      string;
 }
@@ -91,6 +95,15 @@ export const createAlert = (body: {
 
 export const acknowledgeAlert = (id: string): Promise<{ alert: AlertPublic }> =>
   apiFetch<{ alert: AlertPublic }>(`/alerts/${id}/acknowledge`, { method: 'PATCH' });
+
+export const escalateAlert = (
+  id: string,
+  body: { incidentId?: string } = {},
+): Promise<{ alert: AlertPublic }> =>
+  apiFetch<{ alert: AlertPublic }>(`/alerts/${id}/escalate`, {
+    method: 'PATCH',
+    body:   JSON.stringify(body),
+  });
 
 export const resolveAlert = (id: string): Promise<{ alert: AlertPublic }> =>
   apiFetch<{ alert: AlertPublic }>(`/alerts/${id}/resolve`, { method: 'PATCH' });

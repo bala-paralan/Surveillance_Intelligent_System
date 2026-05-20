@@ -1,9 +1,28 @@
+import { useEffect, useState } from 'react';
 import { Icon } from '../components/Icon';
 import { Sparkline } from '../components/Sparkline';
 import { CameraTile } from '../components/CameraTile';
 import { Severity } from '../components/Severity';
 import { ALERTS, INCIDENTS, CAMERAS, SECTORS, SPARK_HOUR, SPARK_DAY } from '../data';
 import type { DashboardVariant, PageKey } from '../types';
+import { listAlerts } from '@/api/alerts';
+import { listIncidents } from '@/api/incidents';
+
+interface KpiCounts {
+  activeAlerts:    number;
+  criticalAlerts:  number;
+  openIncidents:   number;
+  escalatedIncidents: number;
+  loaded:          boolean;
+}
+
+const INITIAL_KPI: KpiCounts = {
+  activeAlerts:       0,
+  criticalAlerts:     0,
+  openIncidents:      0,
+  escalatedIncidents: 0,
+  loaded:             false,
+};
 
 interface DashboardPageProps {
   variant: DashboardVariant;
@@ -111,6 +130,40 @@ const ExecDashboard = () => {
 };
 
 export const DashboardPage = ({ variant, onNav }: DashboardPageProps) => {
+  const [kpi, setKpi] = useState<KpiCounts>(INITIAL_KPI);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async (): Promise<void> => {
+      try {
+        const [alertsRes, incidentsRes] = await Promise.all([
+          listAlerts({ acknowledged: false, limit: 200 }),
+          listIncidents({ limit: 200 }),
+        ]);
+        if (cancelled) return;
+        const criticalAlerts = alertsRes.alerts.filter((a) => a.severity === 'CRITICAL').length;
+        const openIncidents = incidentsRes.incidents.filter(
+          (i) => i.status !== 'RESOLVED' && i.status !== 'CLOSED',
+        ).length;
+        const escalatedIncidents = incidentsRes.incidents.filter((i) => i.status === 'ESCALATED').length;
+        setKpi({
+          activeAlerts:   alertsRes.alerts.length,
+          criticalAlerts,
+          openIncidents,
+          escalatedIncidents,
+          loaded: true,
+        });
+      } catch {
+        // Leave KPIs at 0/loaded=false on error; mock copy below keeps showing
+        // until backend is reachable. Avoids alarming red zeros on a transient
+        // network blip.
+        if (!cancelled) setKpi((prev) => ({ ...prev, loaded: false }));
+      }
+    };
+    void load();
+    return () => { cancelled = true; };
+  }, []);
+
   if (variant === 'exec') return <ExecDashboard />;
 
   return (
@@ -151,20 +204,24 @@ export const DashboardPage = ({ variant, onNav }: DashboardPageProps) => {
         <div className="card kpi">
           <div className="label">Active alerts</div>
           <div className="row gap-8" style={{ alignItems: 'baseline' }}>
-            <div className="val">12</div>
-            <span className="pill danger"><span className="ldot" />3 critical</span>
+            <div className="val">{kpi.loaded ? kpi.activeAlerts : '—'}</div>
+            {kpi.loaded && kpi.criticalAlerts > 0 && (
+              <span className="pill danger"><span className="ldot" />{kpi.criticalAlerts} critical</span>
+            )}
           </div>
           <Sparkline data={SPARK_HOUR} color="var(--danger)" />
-          <div className="delta up"><Icon name="arrU" size={12} /> +4 vs last hour</div>
+          <div className="delta up">{kpi.loaded ? 'live · /api/alerts' : 'connecting…'}</div>
         </div>
         <div className="card kpi">
           <div className="label">Open incidents</div>
           <div className="row gap-8" style={{ alignItems: 'baseline' }}>
-            <div className="val">3</div>
-            <span className="pill warn"><span className="ldot" />1 escalated</span>
+            <div className="val">{kpi.loaded ? kpi.openIncidents : '—'}</div>
+            {kpi.loaded && kpi.escalatedIncidents > 0 && (
+              <span className="pill warn"><span className="ldot" />{kpi.escalatedIncidents} escalated</span>
+            )}
           </div>
           <Sparkline data={INCIDENT_SPARK} color="var(--warn)" />
-          <div className="delta">Avg response 4m 12s</div>
+          <div className="delta">{kpi.loaded ? 'live · /api/incidents' : 'connecting…'}</div>
         </div>
         <div className="card kpi">
           <div className="label">Detections (24h)</div>

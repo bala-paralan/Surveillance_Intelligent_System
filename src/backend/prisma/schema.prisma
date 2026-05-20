@@ -46,17 +46,17 @@ enum SensorHealth {
 // ── Auth ─────────────────────────────────────────────────────────────────────
 
 model User {
-  id           String         @id @default(cuid())
-  email        String         @unique
-  passwordHash String         @map("password_hash")
-  displayName  String?        @map("display_name")
-  role         Role           @default(VIEWER)
-  active       Boolean        @default(true)
-  bopScope     String[]       @default([]) @map("bop_scope")
-  zoneScope    String[]       @default([]) @map("zone_scope")
-  uiMode       String?        @map("ui_mode")
-  createdAt    DateTime       @default(now()) @map("created_at")
-  updatedAt    DateTime       @updatedAt     @map("updated_at")
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  displayName  String?  @map("display_name")
+  role         Role     @default(VIEWER)
+  active       Boolean  @default(true)
+  bopScope     String[] @default([]) @map("bop_scope")
+  zoneScope    String[] @default([]) @map("zone_scope")
+  uiMode       String?  @map("ui_mode")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
 
   refreshTokens RefreshToken[]
   aois          Aoi[]
@@ -66,7 +66,7 @@ model User {
 
 model RefreshToken {
   id        String   @id @default(cuid())
-  tokenHash String   @unique @map("token_hash")  // bcrypt hash of the opaque token
+  tokenHash String   @unique @map("token_hash") // bcrypt hash of the opaque token
   userId    String   @map("user_id")
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   expiresAt DateTime @map("expires_at")
@@ -81,7 +81,7 @@ model RefreshToken {
 model Camera {
   id                String       @id @default(cuid())
   name              String
-  rtspUrlEncrypted  String       @map("rtsp_url_encrypted")   // AES-256-CBC encrypted
+  rtspUrlEncrypted  String       @map("rtsp_url_encrypted") // AES-256-CBC encrypted
   usernameEncrypted String?      @map("username_encrypted")
   passwordEncrypted String?      @map("password_encrypted")
   manufacturer      String?
@@ -92,7 +92,7 @@ model Camera {
   lastSeenAt        DateTime?    @map("last_seen_at")
   createdBy         String       @map("created_by")
   createdAt         DateTime     @default(now()) @map("created_at")
-  updatedAt         DateTime     @updatedAt     @map("updated_at")
+  updatedAt         DateTime     @updatedAt @map("updated_at")
 
   cameraZones        CameraZone[]
   recordingSchedules RecordingSchedule[] @relation("CameraRecordingSchedules")
@@ -106,13 +106,13 @@ model Camera {
 // ── BOP / Site Hierarchy ──────────────────────────────────────────────────────
 
 model Bop {
-  id        String    @id @default(cuid())
-  code      String    @unique
+  id        String   @id @default(cuid())
+  code      String   @unique
   name      String
-  zones     String[]  @default([])
-  assets    String[]  @default([])
-  createdAt DateTime  @default(now()) @map("created_at")
-  updatedAt DateTime  @updatedAt     @map("updated_at")
+  zones     String[] @default([])
+  assets    String[] @default([])
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   bopZones  BopZone[]
   bopAssets Asset[]
@@ -131,8 +131,8 @@ model BopZone {
   childZones   BopZone[] @relation("ZoneHierarchy")
   sensors      String[]  @default([])
 
-  assets       Asset[]
-  aois         Aoi[]
+  assets        Asset[]
+  aois          Aoi[]
   sensorDevices Sensor[]
 
   @@unique([bopId, code])
@@ -140,16 +140,16 @@ model BopZone {
 }
 
 model Asset {
-  id        String    @id @default(cuid())
-  bopId     String    @map("bop_id")
-  bop       Bop       @relation(fields: [bopId], references: [id], onDelete: Cascade)
-  zoneId    String?   @map("zone_id")
-  zone      BopZone?  @relation(fields: [zoneId], references: [id])
+  id        String   @id @default(cuid())
+  bopId     String   @map("bop_id")
+  bop       Bop      @relation(fields: [bopId], references: [id], onDelete: Cascade)
+  zoneId    String?  @map("zone_id")
+  zone      BopZone? @relation(fields: [zoneId], references: [id])
   kind      String
   lat       Float
   lon       Float
-  metadata  Json      @default("{}")
-  createdAt DateTime  @default(now()) @map("created_at")
+  metadata  Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at")
 
   @@index([bopId])
   @@index([zoneId])
@@ -157,15 +157,15 @@ model Asset {
 }
 
 model GisSyncLog {
-  id          String    @id @default(cuid())
-  startedAt   DateTime  @default(now()) @map("started_at")
-  finishedAt  DateTime? @map("finished_at")
-  sourceHash  String?   @map("source_hash")
-  added       Int       @default(0)
-  updated     Int       @default(0)
-  removed     Int       @default(0)
-  status      String    @default("running")
-  errorMsg    String?   @map("error_msg")
+  id         String    @id @default(cuid())
+  startedAt  DateTime  @default(now()) @map("started_at")
+  finishedAt DateTime? @map("finished_at")
+  sourceHash String?   @map("source_hash")
+  added      Int       @default(0)
+  updated    Int       @default(0)
+  removed    Int       @default(0)
+  status     String    @default("running")
+  errorMsg   String?   @map("error_msg")
 
   @@map("gis_sync_logs")
 }
@@ -196,11 +196,11 @@ model CameraZone {
   cameraId  String   @map("camera_id")
   zoneId    String   @map("zone_id")
   label     String?
-  polygon   Json     // array of [x, y] normalised coordinate pairs
+  polygon   Json // array of [x, y] normalised coordinate pairs
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  camera    Camera   @relation(fields: [cameraId], references: [id], onDelete: Cascade)
+  camera Camera @relation(fields: [cameraId], references: [id], onDelete: Cascade)
 
   @@unique([cameraId, zoneId])
   @@map("camera_zones")
@@ -238,13 +238,56 @@ model Alert {
   acknowledgedBy String?       @map("acknowledged_by")
   acknowledgedAt DateTime?     @map("acknowledged_at")
   resolvedAt     DateTime?     @map("resolved_at")
+  // TASK-044: escalation
+  escalated      Boolean       @default(false)
+  escalatedBy    String?       @map("escalated_by")
+  escalatedAt    DateTime?     @map("escalated_at")
+  incidentId     String?       @map("incident_id")
+  incident       Incident?     @relation("IncidentAlerts", fields: [incidentId], references: [id], onDelete: SetNull)
   createdAt      DateTime      @default(now()) @map("created_at")
 
   @@index([cameraId])
   @@index([bopZoneId])
   @@index([acknowledged])
+  @@index([escalated])
+  @@index([incidentId])
   @@index([createdAt])
   @@map("alerts")
+}
+
+// ── Incidents (TASK-044) ─────────────────────────────────────────────────────
+
+enum IncidentStatus {
+  OPEN
+  IN_PROGRESS
+  INVESTIGATING
+  ESCALATED
+  RESOLVED
+  CLOSED
+}
+
+model Incident {
+  id         String         @id @default(cuid())
+  title      String
+  severity   AlertSeverity  @default(MEDIUM)
+  status     IncidentStatus @default(OPEN)
+  bopZoneId  String?        @map("bop_zone_id")
+  // Responder is free-text for now (e.g. "Patrol Bravo-2") to mirror the
+  // current operator console mock. A future migration can FK this to a Team
+  // table once shift/patrol scheduling lands.
+  responder  String?
+  openedAt   DateTime       @default(now()) @map("opened_at")
+  resolvedAt DateTime?      @map("resolved_at")
+  createdBy  String         @map("created_by")
+  createdAt  DateTime       @default(now()) @map("created_at")
+  updatedAt  DateTime       @updatedAt @map("updated_at")
+
+  alerts Alert[] @relation("IncidentAlerts")
+
+  @@index([status])
+  @@index([bopZoneId])
+  @@index([createdAt])
+  @@map("incidents")
 }
 
 // ── Recordings (TASK-012) ─────────────────────────────────────────────────────
@@ -325,7 +368,7 @@ model SensorEvent {
   type       SensorEventType
   aoiIds     String[]        @map("aoi_ids")
   confidence Float
-  payload    Json            // type-specific data (direction, distance, bbox, etc.)
+  payload    Json // type-specific data (direction, distance, bbox, etc.)
   occurredAt DateTime        @map("occurred_at")
   createdAt  DateTime        @default(now()) @map("created_at")
 
@@ -371,12 +414,12 @@ model Aoi {
   name         String
   bopZoneId    String?   @map("bop_zone_id")
   bopZone      BopZone?  @relation(fields: [bopZoneId], references: [id])
-  geometryJson String    @map("geometry_json")  // GeoJSON polygon stored as text
+  geometryJson String    @map("geometry_json") // GeoJSON polygon stored as text
   createdById  String    @map("created_by_id")
   createdBy    User      @relation(fields: [createdById], references: [id])
   createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @updatedAt     @map("updated_at")
-  deletedAt    DateTime? @map("deleted_at")  // soft-delete
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  deletedAt    DateTime? @map("deleted_at") // soft-delete
 
   @@index([bopZoneId])
   @@index([createdById])
