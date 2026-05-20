@@ -12,12 +12,23 @@ import { logger } from './logger.js';
 import { authRoutes } from './routes/auth.js';
 import { cameraRoutes } from './routes/cameras.js';
 import { streamRoutes } from './routes/streams.js';
+import { bopRoutes } from './routes/bop.js';
+import { preferencesRoutes } from './routes/preferences.js';
+import { aoiRoutes } from './routes/aoi.js';
+import { catalogueRoutes } from './routes/catalogue.js';
+import { zoneRoutes } from './routes/zones.js';
+import { alertRoutes } from './routes/alerts.js';
 import { AppError } from './errors.js';
 import { stopAllStreams } from './services/stream-service.js';
+import { metricsPlugin } from './middleware/metrics.js';
+import { recordingRoutes } from './routes/recordings.js';
+import { fusionRoutes } from './routes/fusion.js';
 
 const app = Fastify({ logger: logger as Parameters<typeof Fastify>[0]['logger'] });
 
 // ── Plugins ───────────────────────────────────────────────────────────────────
+
+await app.register(metricsPlugin);
 
 await app.register(helmet, {
   contentSecurityPolicy: false, // handled by frontend
@@ -46,6 +57,14 @@ await app.register(staticFiles, {
 await app.register(authRoutes);
 await app.register(cameraRoutes);
 await app.register(streamRoutes);
+await app.register(bopRoutes);
+await app.register(preferencesRoutes);
+await app.register(aoiRoutes);
+await app.register(catalogueRoutes);
+await app.register(zoneRoutes);
+await app.register(alertRoutes);
+await app.register(recordingRoutes);
+await app.register(fusionRoutes);
 
 // ── Health ────────────────────────────────────────────────────────────────────
 

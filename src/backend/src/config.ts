@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 const envSchema = z.object({
   DATABASE_URL:          z.string().url(),
+  REDIS_URL:             z.string().url().default('redis://localhost:6379'),
   JWT_ACCESS_SECRET:     z.string().min(16),
   JWT_REFRESH_SECRET:    z.string().min(16),
   JWT_ACCESS_TTL:        z.coerce.number().default(900),
@@ -13,6 +14,9 @@ const envSchema = z.object({
   CORS_ORIGINS:          z.string().default('http://localhost:3000,http://localhost:5173'),
   HLS_DIR:               z.string().default('/tmp/surveillanceos/streams'),
   STREAM_IDLE_TIMEOUT_S: z.coerce.number().default(300),
+  // Optional: analytics microservice API key for POST /sensor-events.
+  // When empty/absent, the endpoint is disabled (returns 503).
+  ANALYTICS_API_KEY:     z.string().default(''),
 });
 
 const parsed = envSchema.safeParse(process.env);
