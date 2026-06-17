@@ -15,10 +15,6 @@ interface DrawCreateEvent {
   features: GeoJSON.Feature[];
 }
 
-interface DrawSelectionChangeEvent {
-  features: GeoJSON.Feature[];
-}
-
 export const AoiMap = () => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
